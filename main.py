@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+from aiokafka.errors import KafkaError
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -49,7 +50,7 @@ settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(fastapi_app: FastAPI):
     mongodb_client = MongoDBClient(settings)
     await mongodb_client.connect()
     database = mongodb_client.database
@@ -59,10 +60,11 @@ async def lifespan(app: FastAPI):
     consumer: KafkaConsumerAdapter | None = None
 
     if settings.kafka_enabled:
-        producer = KafkaProducerAdapter(settings.kafka_bootstrap_servers)
+        producer_candidate = KafkaProducerAdapter(settings.kafka_bootstrap_servers)
         try:
-            await producer.start()
-        except Exception:
+            await producer_candidate.start()
+            producer = producer_candidate
+        except KafkaError:
             logger.exception("Kafka producer could not start; publishing will be disabled")
             producer = None
 
@@ -74,46 +76,51 @@ async def lifespan(app: FastAPI):
     anomaly_repository = AnomalyMongoDBRepository(database)
     ranking_repository = ConsumptionRankingMongoDBRepository(database)
 
-    app.state.device_identification_command_service = DeviceIdentificationCommandService(
+    fastapi_app.state.device_identification_command_service = DeviceIdentificationCommandService(
         device_repository,
         rule_service,
         event_publisher,
     )
-    app.state.device_identification_query_service = DeviceIdentificationQueryService(device_repository)
-    app.state.bill_prediction_command_service = BillPredictionCommandService(
+    fastapi_app.state.device_identification_query_service = DeviceIdentificationQueryService(device_repository)
+    fastapi_app.state.bill_prediction_command_service = BillPredictionCommandService(
         bill_repository,
         rule_service,
         event_publisher,
     )
-    app.state.bill_prediction_query_service = BillPredictionQueryService(bill_repository)
-    app.state.recommendation_command_service = RecommendationCommandService(
+    fastapi_app.state.bill_prediction_query_service = BillPredictionQueryService(bill_repository)
+    fastapi_app.state.recommendation_command_service = RecommendationCommandService(
         recommendation_repository,
         rule_service,
         event_publisher,
     )
-    app.state.recommendation_query_service = RecommendationQueryService(recommendation_repository)
-    app.state.anomaly_command_service = AnomalyCommandService(anomaly_repository, rule_service, event_publisher)
-    app.state.anomaly_query_service = AnomalyQueryService(anomaly_repository)
-    app.state.consumption_ranking_command_service = ConsumptionRankingCommandService(
+    fastapi_app.state.recommendation_query_service = RecommendationQueryService(recommendation_repository)
+    fastapi_app.state.anomaly_command_service = AnomalyCommandService(
+        anomaly_repository,
+        rule_service,
+        event_publisher,
+    )
+    fastapi_app.state.anomaly_query_service = AnomalyQueryService(anomaly_repository)
+    fastapi_app.state.consumption_ranking_command_service = ConsumptionRankingCommandService(
         ranking_repository,
         rule_service,
         event_publisher,
     )
-    app.state.consumption_ranking_query_service = ConsumptionRankingQueryService(ranking_repository)
+    fastapi_app.state.consumption_ranking_query_service = ConsumptionRankingQueryService(ranking_repository)
 
     if settings.kafka_enabled:
         event_handler = AnalyticsEventHandler(
-            app.state.device_identification_command_service,
-            app.state.anomaly_command_service,
+            fastapi_app.state.device_identification_command_service,
+            fastapi_app.state.anomaly_command_service,
         )
-        consumer = KafkaConsumerAdapter(
+        consumer_candidate = KafkaConsumerAdapter(
             settings.kafka_bootstrap_servers,
             settings.kafka_consumer_group,
             event_handler.handle,
         )
         try:
-            await consumer.start()
-        except Exception:
+            await consumer_candidate.start()
+            consumer = consumer_candidate
+        except KafkaError:
             logger.exception("Kafka consumer could not start; consuming will be disabled")
             consumer = None
 
