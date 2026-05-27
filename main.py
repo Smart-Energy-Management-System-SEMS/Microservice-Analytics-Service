@@ -149,3 +149,9 @@ app.include_router(bill_prediction_controller.router, prefix=API_PREFIX)
 app.include_router(recommendation_controller.router, prefix=API_PREFIX)
 app.include_router(anomaly_controller.router, prefix=API_PREFIX)
 app.include_router(consumption_ranking_controller.router, prefix=API_PREFIX)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8004, reload=True)
