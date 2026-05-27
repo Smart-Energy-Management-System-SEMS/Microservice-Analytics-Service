@@ -110,6 +110,51 @@ Si el API Gateway corre fuera de Docker, puede enrutar hacia:
 http://localhost:8004/api/v1/analytics/**
 ```
 
+## Deploy en Render
+
+Render no sube ni usa la carpeta `.venv`; instala dependencias desde `requirements.txt` o construye la imagen con el `Dockerfile`.
+
+Este repositorio incluye `render.yaml` para crear:
+
+- Un Web Service Docker: `sems-analytics-service`.
+- Un Cron Job opcional: `sems-analytics-keep-alive`.
+
+Variables que debes configurar en Render:
+
+```env
+MONGODB_URI=mongodb+srv://...
+MONGODB_DATABASE=sems_analytics_db
+```
+
+Si usas Kafka en produccion, configura un broker externo:
+
+```env
+KAFKA_ENABLED=true
+KAFKA_BOOTSTRAP_SERVERS=<broker-host>:<broker-port>
+```
+
+Para un deploy inicial sin broker Kafka externo, deja:
+
+```env
+KAFKA_ENABLED=false
+```
+
+Render no ejecuta `docker-compose.yml`; ese archivo es para desarrollo local. En Render se usa `Dockerfile` o runtime Python por servicio.
+
+Para el Cron Job de keep-alive configura:
+
+```env
+KEEP_ALIVE_URL=https://<tu-servicio>.onrender.com/api/v1/analytics/health
+```
+
+El Cron Job esta programado cada 10 minutos:
+
+```text
+*/10 * * * *
+```
+
+Nota: los Web Services free de Render pueden dormir tras 15 minutos sin trafico. Los Cron Jobs de Render tienen costo minimo mensual segun la documentacion actual de Render. Tambien puedes usar un monitor externo como UptimeRobot o cron-job.org apuntando al endpoint `/health`.
+
 ## Endpoints
 
 Base path:

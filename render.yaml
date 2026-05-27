@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: sems-analytics-service
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/v1/analytics/health
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: sems_analytics_db
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_CONSUMER_GROUP
+        value: analytics-service-group
+      - key: KAFKA_ENABLED
+        value: "false"
+      - key: DEFAULT_TARIFF_PER_KWH
+        value: "0.65"
+      - key: DEFAULT_CURRENCY
+        value: USD
+      - key: ANOMALY_THRESHOLD_PERCENTAGE
+        value: "30.0"
+      - key: ALLOWED_ORIGINS
+        value: '["*"]'
+
+  - type: cron
+    name: sems-analytics-keep-alive
+    runtime: python
+    plan: starter
+    schedule: "*/10 * * * *"
+    buildCommand: "true"
+    startCommand: "python scripts/keep_alive.py"
+    envVars:
+      - key: KEEP_ALIVE_URL
+        sync: false
+      - key: KEEP_ALIVE_TIMEOUT_SECONDS
+        value: "10"
