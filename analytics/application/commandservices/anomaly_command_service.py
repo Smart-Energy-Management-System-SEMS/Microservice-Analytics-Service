@@ -19,6 +19,26 @@ class AnomalyCommandService:
         self._event_publisher = event_publisher
 
     async def create(self, command: CreateAnomalyCommand) -> Anomaly:
+        anomaly = self._build_anomaly(command)
+        saved = await self._repository.save(anomaly)
+        await self._event_publisher.publish_anomaly_detected(saved)
+        return saved
+
+    async def detect_and_create(self, command: CreateAnomalyCommand) -> Anomaly | None:
+        is_anomaly, _, _, _, _ = self._rule_service.detect_anomaly(
+            command.actual_kwh,
+            command.expected_kwh,
+            command.historical_kwh,
+            command.threshold_percentage,
+        )
+        if not is_anomaly:
+            return None
+        return await self.create(command)
+
+    async def resolve(self, anomaly_id: str) -> Anomaly | None:
+        return await self._repository.mark_resolved(anomaly_id)
+
+    def _build_anomaly(self, command: CreateAnomalyCommand) -> Anomaly:
         _, calculated_type, severity, expected, deviation = self._rule_service.detect_anomaly(
             command.actual_kwh,
             command.expected_kwh,
@@ -44,9 +64,4 @@ class AnomalyCommandService:
             resolved_at=None,
             created_at=now,
         )
-        saved = await self._repository.save(anomaly)
-        await self._event_publisher.publish_anomaly_detected(saved)
-        return saved
-
-    async def resolve(self, anomaly_id: str) -> Anomaly | None:
-        return await self._repository.mark_resolved(anomaly_id)
+        return anomaly

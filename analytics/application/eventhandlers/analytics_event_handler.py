@@ -35,7 +35,7 @@ class AnalyticsEventHandler:
     async def _handle_consumption_recorded(self, payload: dict[str, Any]) -> None:
         if not payload.get("user_id") or not payload.get("device_id") or payload.get("actual_kwh") is None:
             return
-        await self._anomaly_command_service.create(
+        await self._anomaly_command_service.detect_and_create(
             CreateAnomalyCommand(
                 user_id=str(payload["user_id"]),
                 device_id=str(payload["device_id"]),
