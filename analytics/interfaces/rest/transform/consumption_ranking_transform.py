@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from analytics.domain.model.commands.create_consumption_ranking_command import (
     CreateConsumptionRankingCommand,
     RankingSourceItem,
@@ -23,7 +25,7 @@ def entity_to_response(entity: ConsumptionRanking) -> ConsumptionRankingResponse
         period_type=entity.period_type,
         period_start=entity.period_start,
         period_end=entity.period_end,
-        rankings=[RankingItemResponse(**item.__dict__) for item in entity.rankings],
+        rankings=[RankingItemResponse(**asdict(item)) for item in entity.rankings],
         generated_at=entity.generated_at,
         created_at=entity.created_at,
     )

@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from analytics.domain.model.commands.create_device_identification_command import CreateDeviceIdentificationCommand
 from analytics.domain.model.entities.device_identification_result import DeviceIdentificationResult
 from analytics.interfaces.rest.resources.device_identification_resource import (
@@ -11,4 +13,4 @@ def request_to_command(request: CreateDeviceIdentificationRequest) -> CreateDevi
 
 
 def entity_to_response(entity: DeviceIdentificationResult) -> DeviceIdentificationResponse:
-    return DeviceIdentificationResponse(**entity.__dict__)
+    return DeviceIdentificationResponse(**asdict(entity))

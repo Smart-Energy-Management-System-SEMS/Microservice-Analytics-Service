@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from analytics.domain.model.commands.create_recommendation_command import CreateRecommendationCommand
 from analytics.domain.model.entities.recommendation import Recommendation
 from analytics.interfaces.rest.resources.recommendation_resource import CreateRecommendationRequest, RecommendationResponse
@@ -8,4 +10,4 @@ def request_to_command(request: CreateRecommendationRequest) -> CreateRecommenda
 
 
 def entity_to_response(entity: Recommendation) -> RecommendationResponse:
-    return RecommendationResponse(**entity.__dict__)
+    return RecommendationResponse(**asdict(entity))
