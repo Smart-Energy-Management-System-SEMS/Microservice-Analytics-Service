@@ -9,5 +9,3 @@ __pycache__
 .pytest_cache
 .env
 *.iml
-Dockerfile
-docker-compose.yml
