@@ -66,6 +66,50 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8004
 ```
 
+## Ejecutar con Docker
+
+El contenedor usa MongoDB Atlas mediante `.env` y levanta Kafka local con Docker Compose.
+
+```powershell
+docker compose up --build
+```
+
+La API queda disponible en:
+
+```text
+http://localhost:8004/api/v1/analytics
+```
+
+Health check:
+
+```powershell
+curl http://localhost:8004/api/v1/analytics/health
+```
+
+Para detener:
+
+```powershell
+docker compose down
+```
+
+Para limpiar tambien el volumen local de Kafka:
+
+```powershell
+docker compose down -v
+```
+
+Si el API Gateway corre en Docker y esta conectado a la red `sems-network`, puede enrutar hacia:
+
+```text
+http://analytics-service:8004/api/v1/analytics/**
+```
+
+Si el API Gateway corre fuera de Docker, puede enrutar hacia:
+
+```text
+http://localhost:8004/api/v1/analytics/**
+```
+
 ## Endpoints
 
 Base path:

@@ -1,0 +1,49 @@
+services:
+  analytics-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sems-analytics-service
+    env_file:
+      - .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: analytics-service-group
+      KAFKA_ENABLED: "true"
+    ports:
+      - "8004:8004"
+    depends_on:
+      kafka:
+        condition: service_started
+    networks:
+      - sems-network
+    restart: unless-stopped
+
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: sems-kafka
+    environment:
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    ports:
+      - "29092:29092"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    networks:
+      - sems-network
+    restart: unless-stopped
+
+networks:
+  sems-network:
+    name: sems-network
+    driver: bridge
+
+volumes:
+  kafka-data:
