@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from analytics.domain.model.entities.recommendation import Recommendation
 from analytics.domain.repositories.recommendation_repository import RecommendationRepository
@@ -32,6 +33,6 @@ class RecommendationMongoDBRepository(BaseMongoDBRepository, RecommendationRepos
         document = await self._collection.find_one_and_update(
             {"_id": object_id},
             {"$set": {"status": "applied", "applied_at": datetime.utcnow()}},
-            return_document=True,
+            return_document=ReturnDocument.AFTER,
         )
         return document_to_recommendation(document) if document else None

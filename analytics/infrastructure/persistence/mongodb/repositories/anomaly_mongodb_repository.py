@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from analytics.domain.model.entities.anomaly import Anomaly
 from analytics.domain.repositories.anomaly_repository import AnomalyRepository
@@ -29,6 +30,6 @@ class AnomalyMongoDBRepository(BaseMongoDBRepository, AnomalyRepository):
         document = await self._collection.find_one_and_update(
             {"_id": object_id},
             {"$set": {"status": "resolved", "resolved_at": datetime.utcnow()}},
-            return_document=True,
+            return_document=ReturnDocument.AFTER,
         )
         return document_to_anomaly(document) if document else None
