@@ -3,6 +3,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from analytics.infrastructure.configuration.settings import get_settings
+
+settings = get_settings()
+
 
 class CreateRecommendationRequest(BaseModel):
     user_id: str
@@ -11,8 +15,8 @@ class CreateRecommendationRequest(BaseModel):
     current_kwh: Optional[float] = Field(default=None, ge=0)
     average_kwh: Optional[float] = Field(default=None, ge=0)
     estimated_saving_kwh: Optional[float] = Field(default=None, ge=0)
-    tariff_per_kwh: float = Field(default=0.65, ge=0)
-    currency: str = "USD"
+    tariff_per_kwh: float = Field(default=settings.default_tariff_per_kwh, ge=0)
+    currency: str = settings.default_currency
 
 
 class RecommendationResponse(BaseModel):

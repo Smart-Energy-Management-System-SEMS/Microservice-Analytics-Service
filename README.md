@@ -53,6 +53,7 @@ Copia `.env.example` a `.env` y configura:
 ```env
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority
 MONGODB_DATABASE=sems_analytics_db
+PORT=8004
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_CONSUMER_GROUP=analytics-service-group
 ```

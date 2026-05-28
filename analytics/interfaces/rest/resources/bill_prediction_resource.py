@@ -3,6 +3,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from analytics.infrastructure.configuration.settings import get_settings
+
+settings = get_settings()
+
 
 class CreateBillPredictionRequest(BaseModel):
     user_id: str
@@ -11,8 +15,8 @@ class CreateBillPredictionRequest(BaseModel):
     period_start: datetime
     period_end: datetime
     historical_consumption_kwh: list[float] = Field(default_factory=list)
-    tariff_per_kwh: float = Field(default=0.65, ge=0)
-    currency: str = "USD"
+    tariff_per_kwh: float = Field(default=settings.default_tariff_per_kwh, ge=0)
+    currency: str = settings.default_currency
     estimated_kwh: Optional[float] = Field(default=None, ge=0)
     estimated_amount: Optional[float] = Field(default=None, ge=0)
     error_margin_percentage: float = Field(default=10.0, ge=0)

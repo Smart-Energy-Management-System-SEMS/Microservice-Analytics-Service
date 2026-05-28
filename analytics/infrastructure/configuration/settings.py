@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Analytics Service"
     environment: str = "development"
+    port: int = 8004
     allowed_origins: List[str] = Field(default_factory=lambda: ["*"])
 
     mongodb_uri: str = "mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority"
