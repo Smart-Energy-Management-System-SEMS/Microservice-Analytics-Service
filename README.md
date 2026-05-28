@@ -1,168 +1,58 @@
-﻿# Microservice-Analytics-Service
+# Microservice-Analytics-Service
 
-Analytics Service para Smart Energy Management System construido con Python, FastAPI, MongoDB Atlas, Motor async driver, Kafka, Pydantic y arquitectura DDD.
+Microservicio de Analytics para SEMS, construido con Python, FastAPI, MongoDB y Kafka, siguiendo arquitectura DDD.
 
-Este microservicio no usa Machine Learning, AWS, SageMaker, OpenAI ni servicios externos de IA. Toda la analitica se calcula con reglas internas, promedios, umbrales y heuristicas.
+## Objetivo de esta versión
 
-## Responsabilidades
+Este servicio ahora está preparado para consumir configuración centralizada desde un **Config Service** y reducir configuración hardcodeada/repetida.
 
-- Analitica de consumo energetico.
-- Prediccion simple de facturacion basada en reglas.
-- Generacion de recomendaciones.
-- Deteccion simple de anomalias.
-- Rankings de consumo.
+## Variables de entorno del microservicio
 
-## Estructura
-
-```text
-analytics/
-  application/
-    commandservices/
-    eventhandlers/
-    outboundservices/
-    queryservices/
-  domain/
-    model/
-      aggregates/
-      commands/
-      entities/
-      queries/
-      valueobjects/
-    repositories/
-    services/
-  infrastructure/
-    configuration/
-    messaging/kafka/
-    persistence/mongodb/
-      configuration/
-      model/
-      repositories/
-  interfaces/
-    acl/
-    rest/
-      controllers/
-      resources/
-      transform/
-main.py
-```
-
-## Variables de entorno
-
-Copia `.env.example` a `.env` y configura:
+Solo se mantienen variables propias de despliegue o sensibles:
 
 ```env
+PORT=8004
+CONFIG_SERVICE_URL=http://localhost:8000
+CONFIG_SERVICE_TIMEOUT_SECONDS=3.0
+SERVICE_NAME=analytics-service
+
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority
 MONGODB_DATABASE=sems_analytics_db
-PORT=8004
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-KAFKA_CONSUMER_GROUP=analytics-service-group
+
+# Opcional: solo si Kafka usa autenticacion
+KAFKA_SASL_USERNAME=<kafka-username>
+KAFKA_SASL_PASSWORD=<kafka-password>
 ```
 
-## Ejecutar
+## Configuración que ahora viene desde Config Service
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8004
-```
+El microservicio consulta:
 
-## Ejecutar con Docker
+- `GET /api/v1/config/services`
+- `GET /api/v1/config/kafka`
+- `GET /api/v1/config/{service-name}`
 
-El contenedor usa MongoDB Atlas mediante `.env` y levanta Kafka local con Docker Compose.
+Y usa esa configuración para:
 
-```powershell
-docker compose up --build
-```
+- `api_prefix` (por defecto: `/api/v1/analytics`)
+- Kafka:
+  - `bootstrap servers`
+  - `consumer group`
+  - `enabled`
+  - `security protocol`
+  - `sasl mechanism`
+  - tópicos de consumo/producción
+- Reglas de negocio compartidas:
+  - `default_tariff_per_kwh`
+  - `default_currency`
+  - `anomaly_threshold_percentage`
+- CORS (`allowed_origins`)
 
-La API queda disponible en:
+Si Config Service no responde, el servicio usa defaults locales seguros (fallback) y sigue operativo.
 
-```text
-http://localhost:8004/api/v1/analytics
-```
+## Endpoints (sin cambios de contrato)
 
-Health check:
-
-```powershell
-curl http://localhost:8004/api/v1/analytics/health
-```
-
-Para detener:
-
-```powershell
-docker compose down
-```
-
-Para limpiar tambien el volumen local de Kafka:
-
-```powershell
-docker compose down -v
-```
-
-Si el API Gateway corre en Docker y esta conectado a la red `sems-network`, puede enrutar hacia:
-
-```text
-http://analytics-service:8004/api/v1/analytics/**
-```
-
-Si el API Gateway corre fuera de Docker, puede enrutar hacia:
-
-```text
-http://localhost:8004/api/v1/analytics/**
-```
-
-## Deploy en Render
-
-Render no sube ni usa la carpeta `.venv`; instala dependencias desde `requirements.txt` o construye la imagen con el `Dockerfile`.
-
-Este repositorio incluye `render.yaml` para crear:
-
-- Un Web Service Docker: `sems-analytics-service`.
-- Un Cron Job opcional: `sems-analytics-keep-alive`.
-
-Variables que debes configurar en Render:
-
-```env
-MONGODB_URI=mongodb+srv://...
-MONGODB_DATABASE=sems_analytics_db
-```
-
-Si usas Kafka en produccion, configura un broker externo:
-
-```env
-KAFKA_ENABLED=true
-KAFKA_BOOTSTRAP_SERVERS=<broker-host>:<broker-port>
-```
-
-Para un deploy inicial sin broker Kafka externo, deja:
-
-```env
-KAFKA_ENABLED=false
-```
-
-Render no ejecuta `docker-compose.yml`; ese archivo es para desarrollo local. En Render se usa `Dockerfile` o runtime Python por servicio.
-
-Para el Cron Job de keep-alive configura:
-
-```env
-KEEP_ALIVE_URL=https://<tu-servicio>.onrender.com/api/v1/analytics/health
-```
-
-El Cron Job esta programado cada 10 minutos:
-
-```text
-*/10 * * * *
-```
-
-Nota: los Web Services free de Render pueden dormir tras 15 minutos sin trafico. Los Cron Jobs de Render tienen costo minimo mensual segun la documentacion actual de Render. Tambien puedes usar un monitor externo como UptimeRobot o cron-job.org apuntando al endpoint `/health`.
-
-## Endpoints
-
-Base path:
-
-```text
-/api/v1/analytics
-```
+Base path (configurable): `/api/v1/analytics`
 
 - `GET /health`
 - `GET /device-identifications/user/{user_id}`
@@ -178,26 +68,49 @@ Base path:
 - `GET /consumption-rankings/user/{user_id}`
 - `POST /consumption-rankings`
 
-## Kafka
+## Ejecución local
 
-Consume:
+1. Crear `.env` a partir de `.env.example`.
+2. Configurar MongoDB y `CONFIG_SERVICE_URL`.
+3. Ejecutar:
 
-- `energy.consumption.recorded`
-- `device.registered`
-- `device.updated`
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8004
+```
 
-Publica:
+Health check:
 
-- `analytics.bill_prediction.generated`
-- `analytics.recommendation.generated`
-- `analytics.anomaly.detected`
-- `analytics.device_identified`
-- `analytics.consumption_ranking.generated`
+```text
+http://localhost:8004/api/v1/analytics/health
+```
 
-## Colecciones MongoDB
+## Docker local
 
-- `device_identification_results`
-- `bill_predictions`
-- `recommendations`
-- `anomalies`
-- `consumption_rankings`
+```powershell
+docker compose up --build
+```
+
+En Docker Compose, Kafka se levanta localmente para desarrollo y creación de tópicos.
+
+## Azure Container Apps (recomendado)
+
+En ACA, configura:
+
+- Secretos:
+  - `MONGODB_URI`
+  - `KAFKA_SASL_PASSWORD` (si aplica)
+- Variables de entorno:
+  - `PORT`
+  - `CONFIG_SERVICE_URL` (idealmente URL interna del Config Service en ACA)
+  - `SERVICE_NAME=analytics-service`
+  - `MONGODB_DATABASE`
+  - `KAFKA_SASL_USERNAME` (si aplica)
+
+Recomendaciones:
+
+- Exponer Config Service por red interna del entorno ACA.
+- Gestionar secretos con `secretRef`.
+- Configurar readiness/liveness apuntando a `/api/v1/analytics/health` (o al `api_prefix` centralizado si cambia).
