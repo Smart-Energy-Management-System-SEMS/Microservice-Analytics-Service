@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     port: int = 8004
     api_prefix: str = "/api/v1/analytics"
-    allowed_origins: List[str] = Field(default_factory=lambda: ["*"])
-    config_service_url: str = "http://localhost:8000"
+    allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"])
+    config_service_url: str = "http://localhost:8090"
     config_service_timeout_seconds: float = 3.0
 
     mongodb_uri: str = "mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority"

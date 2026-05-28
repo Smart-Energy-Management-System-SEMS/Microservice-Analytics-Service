@@ -14,8 +14,11 @@ class ConfigServiceClient:
         self._timeout_seconds = timeout_seconds
 
     def get_service_config(self, service_name: str) -> dict[str, Any]:
-        service_path = f"api/v1/config/{quote(service_name)}"
+        service_path = f"api/v1/config/services/{quote(service_name)}"
         service_config = self._get_json(service_path)
+        if not service_config:
+            # Backward compatibility with older Config Service route shape.
+            service_config = self._get_json(f"api/v1/config/{quote(service_name)}")
         kafka_config = self._get_json("api/v1/config/kafka")
         services_config = self._get_json("api/v1/config/services")
 

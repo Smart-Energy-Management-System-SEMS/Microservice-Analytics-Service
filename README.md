@@ -1,116 +1,79 @@
 # Microservice-Analytics-Service
 
-Microservicio de Analytics para SEMS, construido con Python, FastAPI, MongoDB y Kafka, siguiendo arquitectura DDD.
+Analytics microservice for SEMS (FastAPI + MongoDB + Kafka) with DDD architecture.
 
-## Objetivo de esta versión
+## Local integration targets
 
-Este servicio ahora está preparado para consumir configuración centralizada desde un **Config Service** y reducir configuración hardcodeada/repetida.
+- Config Service: `http://localhost:8090`
+- API Gateway: `http://localhost:8081`
+- This service base URL: `http://localhost:8004`
+- Route prefix: `/api/v1/analytics`
 
-## Variables de entorno del microservicio
+## Minimal local env
 
-Solo se mantienen variables propias de despliegue o sensibles:
+Use `.env.example` as base:
 
 ```env
 PORT=8004
-CONFIG_SERVICE_URL=http://localhost:8000
+CONFIG_SERVICE_URL=http://localhost:8090
 CONFIG_SERVICE_TIMEOUT_SECONDS=3.0
 SERVICE_NAME=analytics-service
+ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
 
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority
 MONGODB_DATABASE=sems_analytics_db
 
-# Opcional: solo si Kafka usa autenticacion
+# Optional only if Kafka auth is required
 KAFKA_SASL_USERNAME=<kafka-username>
 KAFKA_SASL_PASSWORD=<kafka-password>
 ```
 
-## Configuración que ahora viene desde Config Service
+## Config resolved from Config Service
 
-El microservicio consulta:
+This service consumes:
 
 - `GET /api/v1/config/services`
+- `GET /api/v1/config/services/{serviceName}`
 - `GET /api/v1/config/kafka`
-- `GET /api/v1/config/{service-name}`
 
-Y usa esa configuración para:
+If Config Service is unavailable, local defaults are used as fallback.
 
-- `api_prefix` (por defecto: `/api/v1/analytics`)
-- Kafka:
-  - `bootstrap servers`
-  - `consumer group`
-  - `enabled`
-  - `security protocol`
-  - `sasl mechanism`
-  - tópicos de consumo/producción
-- Reglas de negocio compartidas:
-  - `default_tariff_per_kwh`
-  - `default_currency`
-  - `anomaly_threshold_percentage`
-- CORS (`allowed_origins`)
+## Health check
 
-Si Config Service no responde, el servicio usa defaults locales seguros (fallback) y sigue operativo.
+Public and no-auth:
 
-## Endpoints (sin cambios de contrato)
+- `GET /api/v1/analytics/health`
 
-Base path (configurable): `/api/v1/analytics`
+## Main endpoints
 
-- `GET /health`
-- `GET /device-identifications/user/{user_id}`
-- `POST /device-identifications`
-- `GET /bill-predictions/user/{user_id}`
-- `POST /bill-predictions`
-- `GET /recommendations/user/{user_id}`
-- `POST /recommendations`
-- `PATCH /recommendations/{recommendation_id}/apply`
-- `GET /anomalies/user/{user_id}`
-- `POST /anomalies`
-- `PATCH /anomalies/{anomaly_id}/resolve`
-- `GET /consumption-rankings/user/{user_id}`
-- `POST /consumption-rankings`
+- `GET /api/v1/analytics/device-identifications/user/{user_id}`
+- `POST /api/v1/analytics/device-identifications`
+- `GET /api/v1/analytics/bill-predictions/user/{user_id}`
+- `POST /api/v1/analytics/bill-predictions`
+- `GET /api/v1/analytics/recommendations/user/{user_id}`
+- `POST /api/v1/analytics/recommendations`
+- `PATCH /api/v1/analytics/recommendations/{recommendation_id}/apply`
+- `GET /api/v1/analytics/anomalies/user/{user_id}`
+- `POST /api/v1/analytics/anomalies`
+- `PATCH /api/v1/analytics/anomalies/{anomaly_id}/resolve`
+- `GET /api/v1/analytics/consumption-rankings/user/{user_id}`
+- `POST /api/v1/analytics/consumption-rankings`
 
-## Ejecución local
-
-1. Crear `.env` a partir de `.env.example`.
-2. Configurar MongoDB y `CONFIG_SERVICE_URL`.
-3. Ejecutar:
+## Run local
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8004
+uvicorn main:app --host 0.0.0.0 --port 8004 --reload
 ```
 
-Health check:
+## Local dependencies
 
-```text
-http://localhost:8004/api/v1/analytics/health
-```
+- MongoDB Atlas or local MongoDB reachable from `MONGODB_URI`
+- Kafka broker on `localhost:9092` if Kafka is enabled
 
-## Docker local
+## Notes about auth
 
-```powershell
-docker compose up --build
-```
+This microservice does not enforce JWT by itself. Auth is expected to be handled by API Gateway.
 
-En Docker Compose, Kafka se levanta localmente para desarrollo y creación de tópicos.
-
-## Azure Container Apps (recomendado)
-
-En ACA, configura:
-
-- Secretos:
-  - `MONGODB_URI`
-  - `KAFKA_SASL_PASSWORD` (si aplica)
-- Variables de entorno:
-  - `PORT`
-  - `CONFIG_SERVICE_URL` (idealmente URL interna del Config Service en ACA)
-  - `SERVICE_NAME=analytics-service`
-  - `MONGODB_DATABASE`
-  - `KAFKA_SASL_USERNAME` (si aplica)
-
-Recomendaciones:
-
-- Exponer Config Service por red interna del entorno ACA.
-- Gestionar secretos con `secretRef`.
-- Configurar readiness/liveness apuntando a `/api/v1/analytics/health` (o al `api_prefix` centralizado si cambia).
