@@ -1,4 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+import certifi
 
 from analytics.infrastructure.configuration.settings import Settings
 
@@ -9,7 +10,12 @@ class MongoDBClient:
         self._client: AsyncIOMotorClient | None = None
 
     async def connect(self) -> None:
-        self._client = AsyncIOMotorClient(self._settings.mongodb_uri)
+        self._client = AsyncIOMotorClient(
+            self._settings.mongodb_uri,
+            tls=True,
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=30000,
+        )
         await self._client.admin.command("ping")
 
     async def close(self) -> None:
