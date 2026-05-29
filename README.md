@@ -1,203 +1,79 @@
-﻿# Microservice-Analytics-Service
+# Microservice-Analytics-Service
 
-Analytics Service para Smart Energy Management System construido con Python, FastAPI, MongoDB Atlas, Motor async driver, Kafka, Pydantic y arquitectura DDD.
+Analytics microservice for SEMS (FastAPI + MongoDB + Kafka) with DDD architecture.
 
-Este microservicio no usa Machine Learning, AWS, SageMaker, OpenAI ni servicios externos de IA. Toda la analitica se calcula con reglas internas, promedios, umbrales y heuristicas.
+## Local integration targets
 
-## Responsabilidades
+- Config Service: `http://localhost:8090`
+- API Gateway: `http://localhost:8081`
+- This service base URL: `http://localhost:8004`
+- Route prefix: `/api/v1/analytics`
 
-- Analitica de consumo energetico.
-- Prediccion simple de facturacion basada en reglas.
-- Generacion de recomendaciones.
-- Deteccion simple de anomalias.
-- Rankings de consumo.
+## Minimal local env
 
-## Estructura
-
-```text
-analytics/
-  application/
-    commandservices/
-    eventhandlers/
-    outboundservices/
-    queryservices/
-  domain/
-    model/
-      aggregates/
-      commands/
-      entities/
-      queries/
-      valueobjects/
-    repositories/
-    services/
-  infrastructure/
-    configuration/
-    messaging/kafka/
-    persistence/mongodb/
-      configuration/
-      model/
-      repositories/
-  interfaces/
-    acl/
-    rest/
-      controllers/
-      resources/
-      transform/
-main.py
-```
-
-## Variables de entorno
-
-Copia `.env.example` a `.env` y configura:
+Use `.env.example` as base:
 
 ```env
+PORT=8004
+CONFIG_SERVICE_URL=http://localhost:8090
+CONFIG_SERVICE_TIMEOUT_SECONDS=3.0
+SERVICE_NAME=analytics-service
+ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority
 MONGODB_DATABASE=sems_analytics_db
-PORT=8004
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-KAFKA_CONSUMER_GROUP=analytics-service-group
+
+# Optional only if Kafka auth is required
+KAFKA_SASL_USERNAME=<kafka-username>
+KAFKA_SASL_PASSWORD=<kafka-password>
 ```
 
-## Ejecutar
+## Config resolved from Config Service
+
+This service consumes:
+
+- `GET /api/v1/config/services`
+- `GET /api/v1/config/services/{serviceName}`
+- `GET /api/v1/config/kafka`
+
+If Config Service is unavailable, local defaults are used as fallback.
+
+## Health check
+
+Public and no-auth:
+
+- `GET /api/v1/analytics/health`
+
+## Main endpoints
+
+- `GET /api/v1/analytics/device-identifications/user/{user_id}`
+- `POST /api/v1/analytics/device-identifications`
+- `GET /api/v1/analytics/bill-predictions/user/{user_id}`
+- `POST /api/v1/analytics/bill-predictions`
+- `GET /api/v1/analytics/recommendations/user/{user_id}`
+- `POST /api/v1/analytics/recommendations`
+- `PATCH /api/v1/analytics/recommendations/{recommendation_id}/apply`
+- `GET /api/v1/analytics/anomalies/user/{user_id}`
+- `POST /api/v1/analytics/anomalies`
+- `PATCH /api/v1/analytics/anomalies/{anomaly_id}/resolve`
+- `GET /api/v1/analytics/consumption-rankings/user/{user_id}`
+- `POST /api/v1/analytics/consumption-rankings`
+
+## Run local
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8004
+uvicorn main:app --host 0.0.0.0 --port 8004 --reload
 ```
 
-## Ejecutar con Docker
+## Local dependencies
 
-El contenedor usa MongoDB Atlas mediante `.env` y levanta Kafka local con Docker Compose.
+- MongoDB Atlas or local MongoDB reachable from `MONGODB_URI`
+- Kafka broker on `localhost:9092` if Kafka is enabled
 
-```powershell
-docker compose up --build
-```
+## Notes about auth
 
-La API queda disponible en:
+This microservice does not enforce JWT by itself. Auth is expected to be handled by API Gateway.
 
-```text
-http://localhost:8004/api/v1/analytics
-```
-
-Health check:
-
-```powershell
-curl http://localhost:8004/api/v1/analytics/health
-```
-
-Para detener:
-
-```powershell
-docker compose down
-```
-
-Para limpiar tambien el volumen local de Kafka:
-
-```powershell
-docker compose down -v
-```
-
-Si el API Gateway corre en Docker y esta conectado a la red `sems-network`, puede enrutar hacia:
-
-```text
-http://analytics-service:8004/api/v1/analytics/**
-```
-
-Si el API Gateway corre fuera de Docker, puede enrutar hacia:
-
-```text
-http://localhost:8004/api/v1/analytics/**
-```
-
-## Deploy en Render
-
-Render no sube ni usa la carpeta `.venv`; instala dependencias desde `requirements.txt` o construye la imagen con el `Dockerfile`.
-
-Este repositorio incluye `render.yaml` para crear:
-
-- Un Web Service Docker: `sems-analytics-service`.
-- Un Cron Job opcional: `sems-analytics-keep-alive`.
-
-Variables que debes configurar en Render:
-
-```env
-MONGODB_URI=mongodb+srv://...
-MONGODB_DATABASE=sems_analytics_db
-```
-
-Si usas Kafka en produccion, configura un broker externo:
-
-```env
-KAFKA_ENABLED=true
-KAFKA_BOOTSTRAP_SERVERS=<broker-host>:<broker-port>
-```
-
-Para un deploy inicial sin broker Kafka externo, deja:
-
-```env
-KAFKA_ENABLED=false
-```
-
-Render no ejecuta `docker-compose.yml`; ese archivo es para desarrollo local. En Render se usa `Dockerfile` o runtime Python por servicio.
-
-Para el Cron Job de keep-alive configura:
-
-```env
-KEEP_ALIVE_URL=https://<tu-servicio>.onrender.com/api/v1/analytics/health
-```
-
-El Cron Job esta programado cada 10 minutos:
-
-```text
-*/10 * * * *
-```
-
-Nota: los Web Services free de Render pueden dormir tras 15 minutos sin trafico. Los Cron Jobs de Render tienen costo minimo mensual segun la documentacion actual de Render. Tambien puedes usar un monitor externo como UptimeRobot o cron-job.org apuntando al endpoint `/health`.
-
-## Endpoints
-
-Base path:
-
-```text
-/api/v1/analytics
-```
-
-- `GET /health`
-- `GET /device-identifications/user/{user_id}`
-- `POST /device-identifications`
-- `GET /bill-predictions/user/{user_id}`
-- `POST /bill-predictions`
-- `GET /recommendations/user/{user_id}`
-- `POST /recommendations`
-- `PATCH /recommendations/{recommendation_id}/apply`
-- `GET /anomalies/user/{user_id}`
-- `POST /anomalies`
-- `PATCH /anomalies/{anomaly_id}/resolve`
-- `GET /consumption-rankings/user/{user_id}`
-- `POST /consumption-rankings`
-
-## Kafka
-
-Consume:
-
-- `energy.consumption.recorded`
-- `device.registered`
-- `device.updated`
-
-Publica:
-
-- `analytics.bill_prediction.generated`
-- `analytics.recommendation.generated`
-- `analytics.anomaly.detected`
-- `analytics.device_identified`
-- `analytics.consumption_ranking.generated`
-
-## Colecciones MongoDB
-
-- `device_identification_results`
-- `bill_predictions`
-- `recommendations`
-- `anomalies`
-- `consumption_rankings`

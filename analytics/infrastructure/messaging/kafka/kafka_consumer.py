@@ -22,13 +22,34 @@ def _safe_json_deserializer(value: bytes) -> dict[str, Any]:
 
 
 class KafkaConsumerAdapter:
-    def __init__(self, bootstrap_servers: str, consumer_group: str, handler: EventHandler):
+    def __init__(
+        self,
+        bootstrap_servers: str,
+        consumer_group: str,
+        handler: EventHandler,
+        security_protocol: str = "PLAINTEXT",
+        sasl_mechanism: str = "",
+        sasl_username: str = "",
+        sasl_password: str = "",
+    ):
+        kafka_params: dict[str, Any] = {
+            "bootstrap_servers": bootstrap_servers,
+            "group_id": consumer_group,
+            "value_deserializer": _safe_json_deserializer,
+            "auto_offset_reset": "latest",
+        }
+        if security_protocol:
+            kafka_params["security_protocol"] = security_protocol
+        if sasl_mechanism:
+            kafka_params["sasl_mechanism"] = sasl_mechanism
+        if sasl_username:
+            kafka_params["sasl_plain_username"] = sasl_username
+        if sasl_password:
+            kafka_params["sasl_plain_password"] = sasl_password
+
         self._consumer = AIOKafkaConsumer(
             *CONSUMED_TOPICS,
-            bootstrap_servers=bootstrap_servers,
-            group_id=consumer_group,
-            value_deserializer=_safe_json_deserializer,
-            auto_offset_reset="latest",
+            **kafka_params,
         )
         self._handler = handler
         self._task: asyncio.Task | None = None

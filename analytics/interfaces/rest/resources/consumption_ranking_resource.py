@@ -4,8 +4,6 @@ from pydantic import BaseModel, Field
 
 from analytics.infrastructure.configuration.settings import get_settings
 
-settings = get_settings()
-
 
 class RankingSourceItemRequest(BaseModel):
     device_id: str
@@ -19,8 +17,8 @@ class CreateConsumptionRankingRequest(BaseModel):
     period_start: datetime
     period_end: datetime
     devices: list[RankingSourceItemRequest]
-    tariff_per_kwh: float = Field(default=settings.default_tariff_per_kwh, ge=0)
-    currency: str = settings.default_currency
+    tariff_per_kwh: float = Field(default_factory=lambda: get_settings().default_tariff_per_kwh, ge=0)
+    currency: str = Field(default_factory=lambda: get_settings().default_currency)
 
 
 class RankingItemResponse(BaseModel):

@@ -60,7 +60,13 @@ async def lifespan(fastapi_app: FastAPI):
     consumer: KafkaConsumerAdapter | None = None
 
     if settings.kafka_enabled:
-        producer_candidate = KafkaProducerAdapter(settings.kafka_bootstrap_servers)
+        producer_candidate = KafkaProducerAdapter(
+            settings.kafka_bootstrap_servers,
+            security_protocol=settings.kafka_security_protocol,
+            sasl_mechanism=settings.kafka_sasl_mechanism,
+            sasl_username=settings.kafka_sasl_username,
+            sasl_password=settings.kafka_sasl_password,
+        )
         try:
             await producer_candidate.start()
             producer = producer_candidate
@@ -116,6 +122,10 @@ async def lifespan(fastapi_app: FastAPI):
             settings.kafka_bootstrap_servers,
             settings.kafka_consumer_group,
             event_handler.handle,
+            security_protocol=settings.kafka_security_protocol,
+            sasl_mechanism=settings.kafka_sasl_mechanism,
+            sasl_username=settings.kafka_sasl_username,
+            sasl_password=settings.kafka_sasl_password,
         )
         try:
             await consumer_candidate.start()
@@ -149,7 +159,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_PREFIX = "/api/v1/analytics"
+API_PREFIX = settings.api_prefix
 app.include_router(health_controller.router, prefix=API_PREFIX)
 app.include_router(device_identification_controller.router, prefix=API_PREFIX)
 app.include_router(bill_prediction_controller.router, prefix=API_PREFIX)

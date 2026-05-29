@@ -1,11 +1,11 @@
-CONSUMED_TOPICS = (
-    "energy.consumption.recorded",
-    "device.registered",
-    "device.updated",
-)
+from analytics.infrastructure.configuration.settings import get_settings
 
-ANALYTICS_BILL_PREDICTION_GENERATED = "analytics.bill_prediction.generated"
-ANALYTICS_RECOMMENDATION_GENERATED = "analytics.recommendation.generated"
-ANALYTICS_ANOMALY_DETECTED = "analytics.anomaly.detected"
-ANALYTICS_DEVICE_IDENTIFIED = "analytics.device_identified"
-ANALYTICS_CONSUMPTION_RANKING_GENERATED = "analytics.consumption_ranking.generated"
+settings = get_settings()
+
+CONSUMED_TOPICS = tuple(settings.kafka_consumed_topics)
+
+ANALYTICS_BILL_PREDICTION_GENERATED = settings.kafka_topic_analytics_bill_prediction_generated
+ANALYTICS_RECOMMENDATION_GENERATED = settings.kafka_topic_analytics_recommendation_generated
+ANALYTICS_ANOMALY_DETECTED = settings.kafka_topic_analytics_anomaly_detected
+ANALYTICS_DEVICE_IDENTIFIED = settings.kafka_topic_analytics_device_identified
+ANALYTICS_CONSUMPTION_RANKING_GENERATED = settings.kafka_topic_analytics_consumption_ranking_generated

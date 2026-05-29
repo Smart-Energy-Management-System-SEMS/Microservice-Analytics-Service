@@ -15,10 +15,29 @@ def _json_default(value: Any) -> str:
 
 
 class KafkaProducerAdapter:
-    def __init__(self, bootstrap_servers: str):
+    def __init__(
+        self,
+        bootstrap_servers: str,
+        security_protocol: str = "PLAINTEXT",
+        sasl_mechanism: str = "",
+        sasl_username: str = "",
+        sasl_password: str = "",
+    ):
+        kafka_params: dict[str, Any] = {
+            "bootstrap_servers": bootstrap_servers,
+            "value_serializer": lambda value: json.dumps(value, default=_json_default).encode("utf-8"),
+        }
+        if security_protocol:
+            kafka_params["security_protocol"] = security_protocol
+        if sasl_mechanism:
+            kafka_params["sasl_mechanism"] = sasl_mechanism
+        if sasl_username:
+            kafka_params["sasl_plain_username"] = sasl_username
+        if sasl_password:
+            kafka_params["sasl_plain_password"] = sasl_password
+
         self._producer = AIOKafkaProducer(
-            bootstrap_servers=bootstrap_servers,
-            value_serializer=lambda value: json.dumps(value, default=_json_default).encode("utf-8"),
+            **kafka_params,
         )
         self._started = False
 
