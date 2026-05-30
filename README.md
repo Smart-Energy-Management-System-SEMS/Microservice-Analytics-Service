@@ -2,31 +2,26 @@
 
 Analytics microservice for SEMS (FastAPI + MongoDB + Kafka) with DDD architecture.
 
-## Local integration targets
+## Required environment variables
 
-- Config Service: `http://localhost:8090`
-- API Gateway: `http://localhost:8081`
-- This service base URL: `http://localhost:8004`
-- Route prefix: `/api/v1/analytics`
-
-## Minimal local env
-
-Use `.env.example` as base:
+Base template in `.env.example`:
 
 ```env
-PORT=8004
-CONFIG_SERVICE_URL=http://localhost:8090
-CONFIG_SERVICE_TIMEOUT_SECONDS=3.0
-SERVICE_NAME=analytics-service
-ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
-
-MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority
-MONGODB_DATABASE=sems_analytics_db
-
-# Optional only if Kafka auth is required
-KAFKA_SASL_USERNAME=<kafka-username>
-KAFKA_SASL_PASSWORD=<kafka-password>
+PORT=8080
+CONFIG_SERVICE_URL=
+KAFKA_BROKERS=localhost:9092
+KAFKA_SECURITY_PROTOCOL=
+KAFKA_SASL_MECHANISM=
+KAFKA_USERNAME=
+KAFKA_PASSWORD=
+DATABASE_URL=
+MONGODB_URI=
+ENVIRONMENT=production
 ```
+
+Notes:
+- Local compatibility is maintained with `KAFKA_BROKERS=localhost:9092`.
+- For Azure, use external hosts (do not use `localhost` for Kafka, MongoDB, or Config Service).
 
 ## Config resolved from Config Service
 
@@ -43,6 +38,7 @@ If Config Service is unavailable, local defaults are used as fallback.
 Public and no-auth:
 
 - `GET /api/v1/analytics/health`
+- `GET /api/v1/health`
 
 ## Main endpoints
 
@@ -65,15 +61,69 @@ Public and no-auth:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8004 --reload
+copy .env.example .env
+# Adjust .env for local dependencies (Config Service, MongoDB, Kafka)
+uvicorn main:app --host 0.0.0.0 --port $env:PORT --reload
 ```
 
-## Local dependencies
+## Build Docker image
 
-- MongoDB Atlas or local MongoDB reachable from `MONGODB_URI`
-- Kafka broker on `localhost:9092` if Kafka is enabled
+```powershell
+docker build -t sems-analytics-service:latest .
+```
+
+## Run Docker container
+
+```powershell
+docker run --rm -p 8080:8080 `
+  --env-file .env `
+  -e PORT=8080 `
+  sems-analytics-service:latest
+```
+
+## Azure Container Apps deployment guide
+
+```powershell
+# 1) Variables base
+$RG="sems-rg"
+$LOC="eastus"
+$ENV="sems-aca-env"
+$ACR="semsacr"
+$APP="analytics-service"
+$IMAGE="$ACR.azurecr.io/analytics-service:latest"
+
+# 2) Resource group + ACR + ACA environment
+az group create --name $RG --location $LOC
+az acr create --name $ACR --resource-group $RG --sku Basic
+az containerapp env create --name $ENV --resource-group $RG --location $LOC
+
+# 3) Build and push image
+az acr build --registry $ACR --image analytics-service:latest .
+
+# 4) Deploy Container App
+az containerapp create `
+  --name $APP `
+  --resource-group $RG `
+  --environment $ENV `
+  --image $IMAGE `
+  --target-port 8080 `
+  --ingress external `
+  --env-vars `
+    PORT=8080 `
+    CONFIG_SERVICE_URL=<https://config-service-url> `
+    KAFKA_BROKERS=<broker1:9092,broker2:9092> `
+    KAFKA_SECURITY_PROTOCOL=<PLAINTEXT|SASL_SSL> `
+    KAFKA_SASL_MECHANISM=<PLAIN|SCRAM-SHA-256|SCRAM-SHA-512> `
+    KAFKA_USERNAME=<kafka-username> `
+    KAFKA_PASSWORD=<kafka-password> `
+    MONGODB_URI=<mongodb-connection-string> `
+    ENVIRONMENT=production
+```
+
+Validation:
+- `GET /api/v1/health`
+- Existing APIs under `/api/v1/analytics/*`
 
 ## Notes about auth
 
 This microservice does not enforce JWT by itself. Auth is expected to be handled by API Gateway.
-

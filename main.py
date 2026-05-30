@@ -161,6 +161,7 @@ app.add_middleware(
 
 API_PREFIX = settings.api_prefix
 app.include_router(health_controller.router, prefix=API_PREFIX)
+app.include_router(health_controller.router, prefix="/api/v1")
 app.include_router(device_identification_controller.router, prefix=API_PREFIX)
 app.include_router(bill_prediction_controller.router, prefix=API_PREFIX)
 app.include_router(recommendation_controller.router, prefix=API_PREFIX)

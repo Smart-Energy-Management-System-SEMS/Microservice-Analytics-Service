@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Any, List
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from analytics.infrastructure.configuration.config_service_client import ConfigServiceClient
 
@@ -10,22 +10,40 @@ class Settings(BaseSettings):
     service_name: str = "analytics-service"
     app_name: str = "Analytics Service"
     environment: str = "development"
-    port: int = 8004
+    port: int = Field(default=8004, validation_alias=AliasChoices("PORT"))
     api_prefix: str = "/api/v1/analytics"
     allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"])
-    config_service_url: str = "http://localhost:8090"
+    config_service_url: str = Field(
+        default="http://localhost:8090",
+        validation_alias=AliasChoices("CONFIG_SERVICE_URL"),
+    )
     config_service_timeout_seconds: float = 3.0
 
     mongodb_uri: str = "mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority"
     mongodb_database: str = "sems_analytics_db"
 
-    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_bootstrap_servers: str = Field(
+        default="localhost:9092",
+        validation_alias=AliasChoices("KAFKA_BROKERS", "KAFKA_BOOTSTRAP_SERVERS"),
+    )
     kafka_consumer_group: str = "analytics-service-group"
     kafka_enabled: bool = True
-    kafka_security_protocol: str = "PLAINTEXT"
-    kafka_sasl_mechanism: str = ""
-    kafka_sasl_username: str = ""
-    kafka_sasl_password: str = ""
+    kafka_security_protocol: str = Field(
+        default="PLAINTEXT",
+        validation_alias=AliasChoices("KAFKA_SECURITY_PROTOCOL"),
+    )
+    kafka_sasl_mechanism: str = Field(
+        default="",
+        validation_alias=AliasChoices("KAFKA_SASL_MECHANISM"),
+    )
+    kafka_sasl_username: str = Field(
+        default="",
+        validation_alias=AliasChoices("KAFKA_USERNAME", "KAFKA_SASL_USERNAME"),
+    )
+    kafka_sasl_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("KAFKA_PASSWORD", "KAFKA_SASL_PASSWORD"),
+    )
     kafka_consumed_topics: List[str] = Field(
         default_factory=lambda: [
             "energy.consumption.recorded",
