@@ -60,6 +60,7 @@ async def lifespan(fastapi_app: FastAPI):
     consumer: KafkaConsumerAdapter | None = None
 
     if settings.kafka_enabled:
+        logger.info("Attempting Kafka connection using bootstrap servers: %s", settings.kafka_bootstrap_servers)
         producer_candidate = KafkaProducerAdapter(
             settings.kafka_bootstrap_servers,
             security_protocol=settings.kafka_security_protocol,
@@ -71,8 +72,13 @@ async def lifespan(fastapi_app: FastAPI):
             await producer_candidate.start()
             producer = producer_candidate
         except KafkaError:
-            logger.exception("Kafka producer could not start; publishing will be disabled")
+            logger.exception(
+                "Kafka producer could not start for bootstrap servers %s; publishing will be disabled",
+                settings.kafka_bootstrap_servers,
+            )
             producer = None
+    else:
+        logger.info("Kafka integration is disabled by configuration")
 
     event_publisher = AnalyticsEventPublisher(producer)
 
@@ -131,7 +137,10 @@ async def lifespan(fastapi_app: FastAPI):
             await consumer_candidate.start()
             consumer = consumer_candidate
         except KafkaError:
-            logger.exception("Kafka consumer could not start; consuming will be disabled")
+            logger.exception(
+                "Kafka consumer could not start for bootstrap servers %s; consuming will be disabled",
+                settings.kafka_bootstrap_servers,
+            )
             consumer = None
 
     try:

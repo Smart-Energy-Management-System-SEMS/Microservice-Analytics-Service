@@ -9,7 +9,7 @@ Base template in `.env.example`:
 ```env
 PORT=8080
 CONFIG_SERVICE_URL=
-KAFKA_BROKERS=localhost:9092
+KAFKA_BROKERS=kafka:9092
 KAFKA_SECURITY_PROTOCOL=
 KAFKA_SASL_MECHANISM=
 KAFKA_USERNAME=
@@ -20,7 +20,8 @@ ENVIRONMENT=production
 ```
 
 Notes:
-- Local compatibility is maintained with `KAFKA_BROKERS=localhost:9092`.
+- Default container setup: if this API and Kafka run in Docker on the same network, use `KAFKA_BROKERS=kafka:9092`.
+- If you run this API on your host machine and Kafka is published to the host, use `KAFKA_BROKERS=localhost:9092` or `localhost:29092`, depending on your Docker setup.
 - For Azure, use external hosts (do not use `localhost` for Kafka, MongoDB, or Config Service).
 
 ## Config resolved from Config Service
@@ -62,7 +63,9 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
-# Adjust .env for local dependencies (Config Service, MongoDB, Kafka)
+# Adjust .env for local dependencies (Config Service, MongoDB, Kafka).
+# Important: this template defaults to container mode with kafka:9092.
+# If you run the API outside Docker, replace it with the host-exposed Kafka port.
 uvicorn main:app --host 0.0.0.0 --port $env:PORT --reload
 ```
 

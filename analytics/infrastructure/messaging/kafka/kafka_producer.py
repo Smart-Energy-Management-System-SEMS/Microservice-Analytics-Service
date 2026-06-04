@@ -59,3 +59,4 @@ class KafkaProducerAdapter:
             logger.warning("Kafka producer is not started; event skipped: %s", topic)
             return
         await self._producer.send_and_wait(topic, payload)
+        logger.info("Kafka event published to topic: %s", topic)
