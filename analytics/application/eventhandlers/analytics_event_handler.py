@@ -14,6 +14,7 @@ from analytics.application.commandservices.anomaly_command_service import Anomal
 from analytics.application.commandservices.device_identification_command_service import DeviceIdentificationCommandService
 from analytics.domain.model.commands.create_anomaly_command import CreateAnomalyCommand
 from analytics.domain.model.commands.create_device_identification_command import CreateDeviceIdentificationCommand
+from analytics.infrastructure.messaging.kafka import events
 
 
 class AnalyticsEventHandler:
@@ -31,10 +32,10 @@ class AnalyticsEventHandler:
     async def handle(self, topic: str, payload: dict[str, Any]) -> None:
         """Dispatch the event to the right internal handler based on its topic."""
         # Device-related events -> device identification.
-        if topic in {"device.registered", "device.updated"}:
+        if topic in {events.DEVICE_REGISTERED, events.DEVICE_STATUS_UPDATED}:
             await self._handle_device_event(payload)
         # Consumption-recorded event -> anomaly detection.
-        if topic == "energy.consumption.recorded":
+        if topic == events.ENERGY_CONSUMPTION_RECORDED:
             await self._handle_consumption_recorded(payload)
 
     async def _handle_device_event(self, payload: dict[str, Any]) -> None:

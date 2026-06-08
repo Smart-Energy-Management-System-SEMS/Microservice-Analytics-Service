@@ -44,24 +44,52 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("KAFKA_PASSWORD", "KAFKA_SASL_PASSWORD"),
     )
-    kafka_consumed_topics: List[str] = Field(
-        default_factory=lambda: [
-            "energy.consumption.recorded",
-            "device.registered",
-            "device.updated",
-        ]
+    kafka_topic_energy_consumption_recorded: str = Field(
+        default="energy.consumption.recorded",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ENERGY_CONSUMPTION_RECORDED"),
     )
-    kafka_topic_analytics_bill_prediction_generated: str = "analytics.bill_prediction.generated"
-    kafka_topic_analytics_recommendation_generated: str = "analytics.recommendation.generated"
-    kafka_topic_analytics_anomaly_detected: str = "analytics.anomaly.detected"
-    kafka_topic_analytics_device_identified: str = "analytics.device_identified"
-    kafka_topic_analytics_consumption_ranking_generated: str = "analytics.consumption_ranking.generated"
+    kafka_topic_device_registered: str = Field(
+        default="device.registered",
+        validation_alias=AliasChoices("KAFKA_TOPIC_DEVICE_REGISTERED"),
+    )
+    kafka_topic_device_status_updated: str = Field(
+        default="device.status.updated",
+        validation_alias=AliasChoices("KAFKA_TOPIC_DEVICE_STATUS_UPDATED"),
+    )
+    kafka_consumed_topics: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("KAFKA_CONSUMED_TOPICS"),
+    )
+    kafka_topic_analytics_bill_prediction_generated: str = Field(
+        default="analytics.bill_prediction.generated",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ANALYTICS_BILL_PREDICTION_GENERATED"),
+    )
+    kafka_topic_analytics_recommendation_generated: str = Field(
+        default="analytics.recommendation.generated",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ANALYTICS_RECOMMENDATION_GENERATED"),
+    )
+    kafka_topic_analytics_anomaly_detected: str = Field(
+        default="analytics.anomaly.detected",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ANALYTICS_ANOMALY_DETECTED"),
+    )
+    kafka_topic_analytics_device_identified: str = Field(
+        default="analytics.device_identified",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ANALYTICS_DEVICE_IDENTIFIED"),
+    )
+    kafka_topic_analytics_consumption_ranking_generated: str = Field(
+        default="analytics.consumption_ranking.generated",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ANALYTICS_CONSUMPTION_RANKING_GENERATED"),
+    )
 
     default_tariff_per_kwh: float = 0.65
     default_currency: str = "USD"
     anomaly_threshold_percentage: float = 30.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.kafka_consumed_topics:
+            self.kafka_consumed_topics = _default_consumed_topics(self)
 
 
 @lru_cache
@@ -73,7 +101,10 @@ def get_settings() -> Settings:
     client = ConfigServiceClient(base.config_service_url, timeout_seconds=base.config_service_timeout_seconds)
     remote = client.get_service_config(base.service_name)
     updates = _map_remote_to_settings(remote)
-    return base.model_copy(update=updates)
+    resolved = base.model_copy(update=updates)
+    if "kafka_consumed_topics" not in updates:
+        resolved.kafka_consumed_topics = _default_consumed_topics(resolved)
+    return resolved
 
 
 def _map_remote_to_settings(remote: dict[str, Any]) -> dict[str, Any]:
@@ -94,6 +125,24 @@ def _map_remote_to_settings(remote: dict[str, Any]) -> dict[str, Any]:
         _set_if_present(updates, "kafka_security_protocol", kafka, ["securityProtocol", "security_protocol"])
         _set_if_present(updates, "kafka_sasl_mechanism", kafka, ["saslMechanism", "sasl_mechanism"])
         _set_if_present(updates, "kafka_consumed_topics", kafka, ["consumedTopics", "topicsConsume", "topics_consume"])
+        _set_if_present(
+            updates,
+            "kafka_topic_energy_consumption_recorded",
+            kafka,
+            ["energyConsumptionRecorded", "energy.consumption.recorded"],
+        )
+        _set_if_present(
+            updates,
+            "kafka_topic_device_registered",
+            kafka,
+            ["deviceRegistered", "device.registered"],
+        )
+        _set_if_present(
+            updates,
+            "kafka_topic_device_status_updated",
+            kafka,
+            ["deviceStatusUpdated", "device.status.updated"],
+        )
 
         produced = kafka.get("producedTopics") or kafka.get("topicsProduce") or kafka.get("topics_produce")
         if isinstance(produced, dict):
@@ -151,3 +200,11 @@ def _set_if_present(target: dict[str, Any], target_key: str, source: dict[str, A
         if value is not None:
             target[target_key] = value
             return
+
+
+def _default_consumed_topics(settings: Settings) -> list[str]:
+    return [
+        settings.kafka_topic_energy_consumption_recorded,
+        settings.kafka_topic_device_registered,
+        settings.kafka_topic_device_status_updated,
+    ]
