@@ -61,7 +61,7 @@ class KafkaConsumerAdapter:
         await self._consumer.start()
         self._started = True
         self._task = asyncio.create_task(self._consume())
-        logger.info("Kafka consumer started")
+        logger.info("Kafka consumer started for topics: %s", ", ".join(CONSUMED_TOPICS))
 
     async def stop(self) -> None:
         if self._task is not None:

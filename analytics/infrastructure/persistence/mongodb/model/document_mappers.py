@@ -20,6 +20,14 @@ def _id_to_str(document: dict[str, Any]) -> str | None:
     return str(value) if value is not None else None
 
 
+def _coalesce(document: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = document.get(key)
+        if value is not None:
+            return value
+    return None
+
+
 def _clean_document(data: dict[str, Any]) -> dict[str, Any]:
     document = {key: value for key, value in data.items() if value is not None and key != "id"}
     if data.get("id"):
@@ -48,18 +56,39 @@ def document_to_device_identification(document: dict[str, Any]) -> DeviceIdentif
 
 
 def document_to_device_consumption(document: dict[str, Any]) -> DeviceConsumption:
+    energy_value = _coalesce(
+        document,
+        "energy_kwh",
+        "consumption_kwh",
+        "consumptionKwh",
+        "actual_kwh",
+    )
+    measured_at = _coalesce(
+        document,
+        "measured_at",
+        "measuredAt",
+        "timestamp",
+        "occurred_at",
+        "occurredAt",
+    )
+    created_at = _coalesce(document, "created_at", "createdAt", "timestamp", "occurred_at", "occurredAt")
+
     return DeviceConsumption(
         id=_id_to_str(document),
-        user_id=document["user_id"],
+        user_id=_coalesce(document, "user_id", "owner_id", "userId", "ownerId"),
         device_id=document["device_id"],
-        energy_kwh=float(document["energy_kwh"]),
-        measured_at=document["measured_at"],
-        created_at=document["created_at"],
-        meter_id=document.get("meter_id"),
-        power_watts=float(document["power_watts"]) if document.get("power_watts") is not None else None,
-        estimated_cost=float(document["estimated_cost"]) if document.get("estimated_cost") is not None else None,
-        currency=document.get("currency"),
-        reading_type=document.get("reading_type"),
+        energy_kwh=float(energy_value),
+        measured_at=measured_at,
+        created_at=created_at,
+        meter_id=_coalesce(document, "meter_id", "meterId"),
+        power_watts=float(_coalesce(document, "power_watts", "powerWatts"))
+        if _coalesce(document, "power_watts", "powerWatts") is not None
+        else None,
+        estimated_cost=float(_coalesce(document, "estimated_cost", "estimatedCost"))
+        if _coalesce(document, "estimated_cost", "estimatedCost") is not None
+        else None,
+        currency=_coalesce(document, "currency"),
+        reading_type=_coalesce(document, "reading_type", "readingType"),
     )
 
 

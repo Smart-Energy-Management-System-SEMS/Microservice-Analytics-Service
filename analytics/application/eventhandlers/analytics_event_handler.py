@@ -40,8 +40,8 @@ class AnalyticsEventHandler:
         # Device-related events -> device identification.
         if topic in {events.DEVICE_REGISTERED, events.DEVICE_STATUS_UPDATED}:
             await self._handle_device_event(payload)
-        # Energy-reading event -> anomaly detection.
-        if topic == events.ENERGY_READING_CREATED:
+        # Energy-consumption events -> downstream analytics.
+        if topic in {events.ENERGY_CONSUMPTION_RECORDED, events.ENERGY_READING_CREATED}:
             await self._handle_energy_reading_created(payload)
 
     async def _handle_device_event(self, payload: dict[str, Any]) -> None:
@@ -65,8 +65,16 @@ class AnalyticsEventHandler:
         """Process energy-reading-created events."""
         user_id = _coalesce(payload, "user_id", "userId")
         device_id = _coalesce(payload, "device_id", "deviceId")
-        actual_kwh = _coalesce(payload, "actual_kwh", "energy_kwh", "energyKwh")
+        actual_kwh = _coalesce(
+            payload,
+            "actual_kwh",
+            "consumption_kwh",
+            "consumptionKwh",
+            "energy_kwh",
+            "energyKwh",
+        )
         measured_at = _coalesce(payload, "timestamp", "occurred_at", "occurredAt", "measured_at", "measuredAt")
+        user_id = user_id or _coalesce(payload, "owner_id", "ownerId")
 
         # Validation: user_id, device_id, reading timestamp, and measured consumption are required.
         if not user_id or not device_id or actual_kwh is None or measured_at is None:

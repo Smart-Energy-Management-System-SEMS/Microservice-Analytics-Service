@@ -28,12 +28,28 @@ class DeviceConsumptionMongoDBRepository(BaseMongoDBRepository, DeviceConsumptio
         device_id: str,
         limit: int,
     ) -> list[DeviceConsumption]:
-        cursor = (
-            self._collection.find({"user_id": user_id, "device_id": device_id})
-            .sort("measured_at", -1)
-            .limit(limit)
-        )
-        return [document_to_device_consumption(document) async for document in cursor]
+        pipeline = [
+            {
+                "$match": {
+                    "device_id": device_id,
+                    "$or": [{"user_id": user_id}, {"owner_id": user_id}],
+                }
+            },
+            {
+                "$addFields": {
+                    "_normalized_measured_at": {
+                        "$ifNull": [
+                            "$measured_at",
+                            {"$ifNull": ["$measuredAt", {"$ifNull": ["$timestamp", "$occurred_at"]}]},
+                        ]
+                    }
+                }
+            },
+            {"$sort": {"_normalized_measured_at": -1}},
+            {"$limit": limit},
+        ]
+        documents = [document async for document in self._collection.aggregate(pipeline)]
+        return [document_to_device_consumption(document) for document in documents]
 
     async def summarize_devices_for_period(
         self,
@@ -44,14 +60,39 @@ class DeviceConsumptionMongoDBRepository(BaseMongoDBRepository, DeviceConsumptio
         pipeline = [
             {
                 "$match": {
-                    "user_id": user_id,
-                    "measured_at": {"$gte": period_start, "$lt": period_end},
+                    "$or": [{"user_id": user_id}, {"owner_id": user_id}],
+                }
+            },
+            {
+                "$addFields": {
+                    "_normalized_measured_at": {
+                        "$ifNull": [
+                            "$measured_at",
+                            {"$ifNull": ["$measuredAt", {"$ifNull": ["$timestamp", "$occurred_at"]}]},
+                        ]
+                    },
+                    "_normalized_energy_kwh": {
+                        "$ifNull": [
+                            "$energy_kwh",
+                            {
+                                "$ifNull": [
+                                    "$consumption_kwh",
+                                    {"$ifNull": ["$consumptionKwh", "$actual_kwh"]},
+                                ]
+                            },
+                        ]
+                    },
+                }
+            },
+            {
+                "$match": {
+                    "_normalized_measured_at": {"$gte": period_start, "$lt": period_end},
                 }
             },
             {
                 "$group": {
                     "_id": "$device_id",
-                    "total_kwh": {"$sum": "$energy_kwh"},
+                    "total_kwh": {"$sum": "$_normalized_energy_kwh"},
                 }
             },
             {"$sort": {"total_kwh": -1, "_id": 1}},
@@ -75,8 +116,33 @@ class DeviceConsumptionMongoDBRepository(BaseMongoDBRepository, DeviceConsumptio
         pipeline = [
             {
                 "$match": {
-                    "user_id": user_id,
-                    "measured_at": {"$gte": period_start, "$lt": period_end},
+                    "$or": [{"user_id": user_id}, {"owner_id": user_id}],
+                }
+            },
+            {
+                "$addFields": {
+                    "_normalized_measured_at": {
+                        "$ifNull": [
+                            "$measured_at",
+                            {"$ifNull": ["$measuredAt", {"$ifNull": ["$timestamp", "$occurred_at"]}]},
+                        ]
+                    },
+                    "_normalized_energy_kwh": {
+                        "$ifNull": [
+                            "$energy_kwh",
+                            {
+                                "$ifNull": [
+                                    "$consumption_kwh",
+                                    {"$ifNull": ["$consumptionKwh", "$actual_kwh"]},
+                                ]
+                            },
+                        ]
+                    },
+                }
+            },
+            {
+                "$match": {
+                    "_normalized_measured_at": {"$gte": period_start, "$lt": period_end},
                 }
             },
             {
@@ -84,10 +150,10 @@ class DeviceConsumptionMongoDBRepository(BaseMongoDBRepository, DeviceConsumptio
                     "_id": {
                         "$dateToString": {
                             "format": "%Y-%m-%d",
-                            "date": "$measured_at",
+                            "date": "$_normalized_measured_at",
                         }
                     },
-                    "total_kwh": {"$sum": "$energy_kwh"},
+                    "total_kwh": {"$sum": "$_normalized_energy_kwh"},
                 }
             },
             {"$sort": {"_id": 1}},

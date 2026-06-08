@@ -3,6 +3,7 @@ from analytics.infrastructure.configuration.settings import get_settings
 settings = get_settings()
 
 CONSUMED_TOPICS = tuple(settings.kafka_consumed_topics)
+ENERGY_CONSUMPTION_RECORDED = settings.kafka_topic_energy_consumption_recorded
 ENERGY_READING_CREATED = settings.kafka_topic_energy_reading_created
 DEVICE_REGISTERED = settings.kafka_topic_device_registered
 DEVICE_STATUS_UPDATED = settings.kafka_topic_device_status_updated

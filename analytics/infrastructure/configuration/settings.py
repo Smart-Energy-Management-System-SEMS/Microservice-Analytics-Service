@@ -44,12 +44,13 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("KAFKA_PASSWORD", "KAFKA_SASL_PASSWORD"),
     )
+    kafka_topic_energy_consumption_recorded: str = Field(
+        default="energy.consumption.recorded",
+        validation_alias=AliasChoices("KAFKA_TOPIC_ENERGY_CONSUMPTION_RECORDED"),
+    )
     kafka_topic_energy_reading_created: str = Field(
         default="energy.reading.created",
-        validation_alias=AliasChoices(
-            "KAFKA_TOPIC_ENERGY_READING_CREATED",
-            "KAFKA_TOPIC_ENERGY_CONSUMPTION_RECORDED",
-        ),
+        validation_alias=AliasChoices("KAFKA_TOPIC_ENERGY_READING_CREATED"),
     )
     kafka_topic_device_registered: str = Field(
         default="device.registered",
@@ -95,6 +96,7 @@ class Settings(BaseSettings):
             self.kafka_consumed_topics = _default_consumed_topics(self)
         self.kafka_consumed_topics = _normalize_consumed_topics(
             self.kafka_consumed_topics,
+            self.kafka_topic_energy_consumption_recorded,
             self.kafka_topic_energy_reading_created,
         )
 
@@ -113,6 +115,7 @@ def get_settings() -> Settings:
         resolved.kafka_consumed_topics = _default_consumed_topics(resolved)
     resolved.kafka_consumed_topics = _normalize_consumed_topics(
         resolved.kafka_consumed_topics,
+        resolved.kafka_topic_energy_consumption_recorded,
         resolved.kafka_topic_energy_reading_created,
     )
     return resolved
@@ -138,14 +141,18 @@ def _map_remote_to_settings(remote: dict[str, Any]) -> dict[str, Any]:
         _set_if_present(updates, "kafka_consumed_topics", kafka, ["consumedTopics", "topicsConsume", "topics_consume"])
         _set_if_present(
             updates,
-            "kafka_topic_energy_reading_created",
+            "kafka_topic_energy_consumption_recorded",
             kafka,
             [
-                "energyReadingCreated",
-                "energy.reading.created",
                 "energyConsumptionRecorded",
                 "energy.consumption.recorded",
             ],
+        )
+        _set_if_present(
+            updates,
+            "kafka_topic_energy_reading_created",
+            kafka,
+            ["energyReadingCreated", "energy.reading.created"],
         )
         _set_if_present(
             updates,
@@ -220,18 +227,24 @@ def _set_if_present(target: dict[str, Any], target_key: str, source: dict[str, A
 
 def _default_consumed_topics(settings: Settings) -> list[str]:
     return [
+        settings.kafka_topic_energy_consumption_recorded,
         settings.kafka_topic_energy_reading_created,
         settings.kafka_topic_device_registered,
         settings.kafka_topic_device_status_updated,
     ]
 
 
-def _normalize_consumed_topics(topics: list[str], energy_topic: str) -> list[str]:
+def _normalize_consumed_topics(
+    topics: list[str],
+    energy_consumption_topic: str,
+    energy_reading_topic: str,
+) -> list[str]:
     normalized: list[str] = []
     for topic in topics:
-        resolved = energy_topic if topic == "energy.consumption.recorded" else topic
-        if resolved not in normalized:
-            normalized.append(resolved)
-    if energy_topic not in normalized:
-        normalized.insert(0, energy_topic)
+        if topic not in normalized:
+            normalized.append(topic)
+    if energy_reading_topic and energy_reading_topic not in normalized:
+        normalized.insert(0, energy_reading_topic)
+    if energy_consumption_topic and energy_consumption_topic not in normalized:
+        normalized.insert(0, energy_consumption_topic)
     return normalized
