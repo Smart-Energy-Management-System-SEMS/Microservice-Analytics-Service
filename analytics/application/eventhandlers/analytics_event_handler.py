@@ -34,9 +34,9 @@ class AnalyticsEventHandler:
         # Device-related events -> device identification.
         if topic in {events.DEVICE_REGISTERED, events.DEVICE_STATUS_UPDATED}:
             await self._handle_device_event(payload)
-        # Consumption-recorded event -> anomaly detection.
-        if topic == events.ENERGY_CONSUMPTION_RECORDED:
-            await self._handle_consumption_recorded(payload)
+        # Energy-reading event -> anomaly detection.
+        if topic == events.ENERGY_READING_CREATED:
+            await self._handle_energy_reading_created(payload)
 
     async def _handle_device_event(self, payload: dict[str, Any]) -> None:
         """Process device registered/updated events."""
@@ -52,17 +52,21 @@ class AnalyticsEventHandler:
             )
         )
 
-    async def _handle_consumption_recorded(self, payload: dict[str, Any]) -> None:
-        """Process energy-consumption-recorded events."""
-        # Validation: user_id, device_id, and the actual consumption are required.
-        if not payload.get("user_id") or not payload.get("device_id") or payload.get("actual_kwh") is None:
+    async def _handle_energy_reading_created(self, payload: dict[str, Any]) -> None:
+        """Process energy-reading-created events."""
+        actual_kwh = payload.get("actual_kwh")
+        if actual_kwh is None:
+            actual_kwh = payload.get("energy_kwh")
+
+        # Validation: user_id, device_id, and the measured consumption are required.
+        if not payload.get("user_id") or not payload.get("device_id") or actual_kwh is None:
             return
         # detect_and_create only creates the anomaly if the rules detect one.
         await self._anomaly_command_service.detect_and_create(
             CreateAnomalyCommand(
                 user_id=str(payload["user_id"]),
                 device_id=str(payload["device_id"]),
-                actual_kwh=float(payload["actual_kwh"]),
+                actual_kwh=float(actual_kwh),
                 expected_kwh=payload.get("expected_kwh"),
                 historical_kwh=payload.get("historical_kwh") or [],  # empty list by default
             )
