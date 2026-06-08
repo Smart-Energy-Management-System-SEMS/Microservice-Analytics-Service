@@ -9,6 +9,9 @@ from analytics.application.commandservices.anomaly_command_service import Anomal
 from analytics.application.commandservices.bill_prediction_command_service import BillPredictionCommandService
 from analytics.application.commandservices.consumption_ranking_command_service import ConsumptionRankingCommandService
 from analytics.application.commandservices.device_identification_command_service import DeviceIdentificationCommandService
+from analytics.application.commandservices.energy_reading_analytics_command_service import (
+    EnergyReadingAnalyticsCommandService,
+)
 from analytics.application.commandservices.recommendation_command_service import RecommendationCommandService
 from analytics.application.eventhandlers.analytics_event_handler import AnalyticsEventHandler
 from analytics.application.outboundservices.analytics_event_publisher import AnalyticsEventPublisher
@@ -31,6 +34,9 @@ from analytics.infrastructure.persistence.mongodb.repositories.consumption_ranki
 )
 from analytics.infrastructure.persistence.mongodb.repositories.device_identification_result_mongodb_repository import (
     DeviceIdentificationResultMongoDBRepository,
+)
+from analytics.infrastructure.persistence.mongodb.repositories.device_consumption_mongodb_repository import (
+    DeviceConsumptionMongoDBRepository,
 )
 from analytics.infrastructure.persistence.mongodb.repositories.recommendation_mongodb_repository import (
     RecommendationMongoDBRepository,
@@ -83,6 +89,7 @@ async def lifespan(fastapi_app: FastAPI):
     event_publisher = AnalyticsEventPublisher(producer)
 
     device_repository = DeviceIdentificationResultMongoDBRepository(database)
+    device_consumption_repository = DeviceConsumptionMongoDBRepository(database)
     bill_repository = BillPredictionMongoDBRepository(database)
     recommendation_repository = RecommendationMongoDBRepository(database)
     anomaly_repository = AnomalyMongoDBRepository(database)
@@ -118,11 +125,22 @@ async def lifespan(fastapi_app: FastAPI):
         event_publisher,
     )
     fastapi_app.state.consumption_ranking_query_service = ConsumptionRankingQueryService(ranking_repository)
+    fastapi_app.state.energy_reading_analytics_command_service = EnergyReadingAnalyticsCommandService(
+        device_consumption_repository,
+        fastapi_app.state.anomaly_command_service,
+        fastapi_app.state.bill_prediction_command_service,
+        fastapi_app.state.recommendation_command_service,
+        fastapi_app.state.consumption_ranking_command_service,
+        rule_service,
+        settings.default_tariff_per_kwh,
+        settings.default_currency,
+    )
 
     if settings.kafka_enabled:
         event_handler = AnalyticsEventHandler(
             fastapi_app.state.device_identification_command_service,
             fastapi_app.state.anomaly_command_service,
+            fastapi_app.state.energy_reading_analytics_command_service,
         )
         consumer_candidate = KafkaConsumerAdapter(
             settings.kafka_bootstrap_servers,

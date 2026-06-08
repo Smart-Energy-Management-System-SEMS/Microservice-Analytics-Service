@@ -7,6 +7,7 @@ from bson import ObjectId
 from analytics.domain.model.entities.anomaly import Anomaly
 from analytics.domain.model.entities.bill_prediction import BillPrediction
 from analytics.domain.model.entities.consumption_ranking import ConsumptionRanking
+from analytics.domain.model.entities.device_consumption import DeviceConsumption
 from analytics.domain.model.entities.device_identification_result import DeviceIdentificationResult
 from analytics.domain.model.entities.recommendation import Recommendation
 from analytics.domain.model.valueobjects.ranking_item import RankingItem
@@ -43,6 +44,22 @@ def document_to_device_identification(document: dict[str, Any]) -> DeviceIdentif
         status=document["status"],
         analyzed_at=document["analyzed_at"],
         created_at=document["created_at"],
+    )
+
+
+def document_to_device_consumption(document: dict[str, Any]) -> DeviceConsumption:
+    return DeviceConsumption(
+        id=_id_to_str(document),
+        user_id=document["user_id"],
+        device_id=document["device_id"],
+        energy_kwh=float(document["energy_kwh"]),
+        measured_at=document["measured_at"],
+        created_at=document["created_at"],
+        meter_id=document.get("meter_id"),
+        power_watts=float(document["power_watts"]) if document.get("power_watts") is not None else None,
+        estimated_cost=float(document["estimated_cost"]) if document.get("estimated_cost") is not None else None,
+        currency=document.get("currency"),
+        reading_type=document.get("reading_type"),
     )
 
 

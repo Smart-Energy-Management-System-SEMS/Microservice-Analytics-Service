@@ -1,4 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from analytics.domain.model.entities.consumption_ranking import ConsumptionRanking
 from analytics.domain.repositories.consumption_ranking_repository import ConsumptionRankingRepository
@@ -15,8 +16,17 @@ class ConsumptionRankingMongoDBRepository(BaseMongoDBRepository, ConsumptionRank
 
     async def save(self, ranking: ConsumptionRanking) -> ConsumptionRanking:
         document = dataclass_to_document(ranking)
-        insert_result = await self._collection.insert_one(document)
-        document["_id"] = insert_result.inserted_id
+        document = await self._collection.find_one_and_replace(
+            {
+                "user_id": ranking.user_id,
+                "period_type": ranking.period_type,
+                "period_start": ranking.period_start,
+                "period_end": ranking.period_end,
+            },
+            document,
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
         return document_to_consumption_ranking(document)
 
     async def find_by_user_id(self, user_id: str) -> list[ConsumptionRanking]:

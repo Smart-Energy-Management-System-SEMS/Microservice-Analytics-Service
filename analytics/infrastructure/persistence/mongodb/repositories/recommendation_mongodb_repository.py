@@ -18,8 +18,17 @@ class RecommendationMongoDBRepository(BaseMongoDBRepository, RecommendationRepos
 
     async def save(self, recommendation: Recommendation) -> Recommendation:
         document = dataclass_to_document(recommendation)
-        insert_result = await self._collection.insert_one(document)
-        document["_id"] = insert_result.inserted_id
+        document = await self._collection.find_one_and_replace(
+            {
+                "user_id": recommendation.user_id,
+                "device_id": recommendation.device_id,
+                "recommendation_type": recommendation.recommendation_type,
+                "status": "pending",
+            },
+            document,
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
         return document_to_recommendation(document)
 
     async def find_by_user_id(self, user_id: str) -> list[Recommendation]:

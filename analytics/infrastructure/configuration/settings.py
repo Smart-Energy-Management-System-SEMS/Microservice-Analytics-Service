@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     def model_post_init(self, __context: Any) -> None:
         if not self.kafka_consumed_topics:
             self.kafka_consumed_topics = _default_consumed_topics(self)
+        self.kafka_consumed_topics = _normalize_consumed_topics(
+            self.kafka_consumed_topics,
+            self.kafka_topic_energy_reading_created,
+        )
 
 
 @lru_cache
@@ -107,6 +111,10 @@ def get_settings() -> Settings:
     resolved = base.model_copy(update=updates)
     if "kafka_consumed_topics" not in updates:
         resolved.kafka_consumed_topics = _default_consumed_topics(resolved)
+    resolved.kafka_consumed_topics = _normalize_consumed_topics(
+        resolved.kafka_consumed_topics,
+        resolved.kafka_topic_energy_reading_created,
+    )
     return resolved
 
 
@@ -216,3 +224,14 @@ def _default_consumed_topics(settings: Settings) -> list[str]:
         settings.kafka_topic_device_registered,
         settings.kafka_topic_device_status_updated,
     ]
+
+
+def _normalize_consumed_topics(topics: list[str], energy_topic: str) -> list[str]:
+    normalized: list[str] = []
+    for topic in topics:
+        resolved = energy_topic if topic == "energy.consumption.recorded" else topic
+        if resolved not in normalized:
+            normalized.append(resolved)
+    if energy_topic not in normalized:
+        normalized.insert(0, energy_topic)
+    return normalized

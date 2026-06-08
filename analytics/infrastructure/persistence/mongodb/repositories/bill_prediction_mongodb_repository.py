@@ -1,4 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from analytics.domain.model.entities.bill_prediction import BillPrediction
 from analytics.domain.repositories.bill_prediction_repository import BillPredictionRepository
@@ -15,8 +16,16 @@ class BillPredictionMongoDBRepository(BaseMongoDBRepository, BillPredictionRepos
 
     async def save(self, prediction: BillPrediction) -> BillPrediction:
         document = dataclass_to_document(prediction)
-        insert_result = await self._collection.insert_one(document)
-        document["_id"] = insert_result.inserted_id
+        document = await self._collection.find_one_and_replace(
+            {
+                "user_id": prediction.user_id,
+                "prediction_year": prediction.prediction_year,
+                "prediction_month": prediction.prediction_month,
+            },
+            document,
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
         return document_to_bill_prediction(document)
 
     async def find_by_user_id(self, user_id: str) -> list[BillPrediction]:
