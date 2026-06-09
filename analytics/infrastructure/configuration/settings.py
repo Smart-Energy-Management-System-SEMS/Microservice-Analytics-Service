@@ -1,8 +1,9 @@
+import json
 from functools import lru_cache
-from typing import Any, List
+from typing import Annotated, Any, List
 
-from pydantic import AliasChoices, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from analytics.infrastructure.configuration.config_service_client import ConfigServiceClient
 
 
@@ -12,14 +13,20 @@ class Settings(BaseSettings):
     environment: str = "development"
     port: int = Field(default=8004, validation_alias=AliasChoices("PORT"))
     api_prefix: str = "/api/v1/analytics"
-    allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"])
+    allowed_origins: Annotated[List[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"],
+        validation_alias=AliasChoices("ALLOWED_ORIGINS"),
+    )
     config_service_url: str = Field(
         default="http://localhost:8090",
         validation_alias=AliasChoices("CONFIG_SERVICE_URL"),
     )
     config_service_timeout_seconds: float = 3.0
 
-    mongodb_uri: str = "mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority"
+    mongodb_uri: str = Field(
+        default="mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority",
+        validation_alias=AliasChoices("MONGODB_URI", "DATABASE_URL"),
+    )
     mongodb_database: str = "sems_analytics_db"
 
     kafka_bootstrap_servers: str = Field(
@@ -89,7 +96,26 @@ class Settings(BaseSettings):
     default_currency: str = "USD"
     anomaly_threshold_percentage: float = 30.0
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(".env.local", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _parse_allowed_origins(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return ["http://localhost:3000", "http://localhost:5173"]
+            if stripped.startswith("["):
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    return [str(origin).strip() for origin in parsed if str(origin).strip()]
+                return ["http://localhost:3000", "http://localhost:5173"]
+            return [origin.strip() for origin in stripped.split(",") if origin.strip()]
+        return value
 
     def model_post_init(self, __context: Any) -> None:
         if not self.kafka_consumed_topics:
