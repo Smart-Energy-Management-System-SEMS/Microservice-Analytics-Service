@@ -48,11 +48,18 @@ class AnalyticsEventPublisher:
         """Publish the consumption-ranking-generated event."""
         await self._publish(events.ANALYTICS_CONSUMPTION_RANKING_GENERATED, ranking)
 
-    async def _publish(self, topic: str, entity: Any) -> None:
-        """Shared private method: serialize the entity and send it to the topic."""
+    async def _publish(self, event_type: str, entity: Any) -> None:
+        """Shared private method: serialize the entity and send it to analytics.events."""
         # If no producer is configured, publish nothing (safe no-op).
         if self._producer is None:
             return
         # Convert the entity to a dict: use asdict for dataclasses, else dict().
-        payload = asdict(entity) if is_dataclass(entity) else dict(entity)
-        await self._producer.publish(topic, payload)
+        data = asdict(entity) if is_dataclass(entity) else dict(entity)
+        payload = {
+            "eventType": event_type,
+            "occurredAt": data.get("created_at") or data.get("generated_at"),
+            "data": data,
+        }
+        if isinstance(data.get("user_id"), str):
+            payload["userId"] = data["user_id"]
+        await self._producer.publish(events.ANALYTICS_EVENTS_TOPIC, payload)

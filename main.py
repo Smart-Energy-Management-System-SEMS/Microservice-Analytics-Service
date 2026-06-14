@@ -138,8 +138,6 @@ async def lifespan(fastapi_app: FastAPI):
 
     if settings.kafka_enabled:
         event_handler = AnalyticsEventHandler(
-            fastapi_app.state.device_identification_command_service,
-            fastapi_app.state.anomaly_command_service,
             fastapi_app.state.energy_reading_analytics_command_service,
         )
         consumer_candidate = KafkaConsumerAdapter(

@@ -8,14 +8,16 @@ Base template in `.env.example`:
 
 ```env
 PORT=8080
-CONFIG_SERVICE_URL=
+CONFIG_SERVICE_URL=http://config-service:8090
 KAFKA_BROKERS=kafka:9092
 KAFKA_SECURITY_PROTOCOL=
 KAFKA_SASL_MECHANISM=
 KAFKA_USERNAME=
 KAFKA_PASSWORD=
-KAFKA_TOPIC_ENERGY_CONSUMPTION_RECORDED=energy.consumption.recorded
-KAFKA_TOPIC_ENERGY_READING_CREATED=energy.reading.created
+KAFKA_TOPIC_ENERGY_EVENTS=energy.events
+KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events
+KAFKA_CONSUMED_TOPICS=["energy.events"]
+KAFKA_CONSUMED_EVENT_TYPES=["energy.reading.created"]
 DATABASE_URL=
 MONGODB_URI=
 ENVIRONMENT=production
@@ -23,8 +25,25 @@ ENVIRONMENT=production
 
 Notes:
 - Default container setup: if this API and Kafka run in Docker on the same network, use `KAFKA_BROKERS=kafka:9092`.
-- If you run this API on your host machine and Kafka is published to the host, use `KAFKA_BROKERS=localhost:9092` or `localhost:29092`, depending on your Docker setup.
-- For Azure, use external hosts (do not use `localhost` for Kafka, MongoDB, or Config Service).
+- If you run this API outside Docker, point `KAFKA_BROKERS` to a reachable broker hostname, not `localhost`.
+- For Azure Event Hubs over Kafka, use your external namespace host and `SASL_SSL`.
+
+## Kafka/Event Hubs contract
+
+- Analytics consumes only from `energy.events`.
+- Analytics filters by `eventType` and processes only:
+  - `energy.reading.created`
+- Analytics publishes all derived results to `analytics.events`.
+- Published messages keep the real event name inside the envelope:
+
+```json
+{
+  "eventType": "analytics.anomaly.detected",
+  "occurredAt": "2026-06-12T22:30:00Z",
+  "userId": "123",
+  "data": {}
+}
+```
 
 ## Config resolved from Config Service
 
@@ -67,7 +86,7 @@ pip install -r requirements.txt
 copy .env.example .env
 # Adjust .env for local dependencies (Config Service, MongoDB, Kafka).
 # Important: this template defaults to container mode with kafka:9092.
-# If you run the API outside Docker, replace it with the host-exposed Kafka port.
+# For Event Hubs/Kafka, replace it with your namespace hostname and SASL settings.
 uvicorn main:app --host 0.0.0.0 --port $env:PORT --reload
 ```
 
@@ -116,11 +135,15 @@ az containerapp create `
   --env-vars `
     PORT=8080 `
     CONFIG_SERVICE_URL=<https://config-service-url> `
-    KAFKA_BROKERS=<broker1:9092,broker2:9092> `
-    KAFKA_SECURITY_PROTOCOL=<PLAINTEXT|SASL_SSL> `
-    KAFKA_SASL_MECHANISM=<PLAIN|SCRAM-SHA-256|SCRAM-SHA-512> `
-    KAFKA_USERNAME=<kafka-username> `
-    KAFKA_PASSWORD=<kafka-password> `
+    KAFKA_BROKERS=<namespace>.servicebus.windows.net:9093 `
+    KAFKA_SECURITY_PROTOCOL=SASL_SSL `
+    KAFKA_SASL_MECHANISM=PLAIN `
+    KAFKA_USERNAME=\$ConnectionString `
+    KAFKA_PASSWORD=<event-hubs-connection-string> `
+    KAFKA_TOPIC_ENERGY_EVENTS=energy.events `
+    KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events `
+    KAFKA_CONSUMED_TOPICS='["energy.events"]' `
+    KAFKA_CONSUMED_EVENT_TYPES='["energy.reading.created"]' `
     MONGODB_URI=<mongodb-connection-string> `
     ENVIRONMENT=production
 ```

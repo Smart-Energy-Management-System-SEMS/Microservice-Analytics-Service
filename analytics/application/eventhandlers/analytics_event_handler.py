@@ -11,13 +11,10 @@ which use case to trigger based on the received ``topic``.
 from typing import Any
 from datetime import datetime
 
-from analytics.application.commandservices.anomaly_command_service import AnomalyCommandService
 from analytics.application.commandservices.energy_reading_analytics_command_service import (
     EnergyReadingAnalyticsCommandService,
 )
-from analytics.application.commandservices.device_identification_command_service import DeviceIdentificationCommandService
 from analytics.domain.model.entities.device_consumption import DeviceConsumption
-from analytics.domain.model.commands.create_device_identification_command import CreateDeviceIdentificationCommand
 from analytics.infrastructure.messaging.kafka import events
 
 
@@ -26,40 +23,21 @@ class AnalyticsEventHandler:
 
     def __init__(
         self,
-        device_identification_command_service: DeviceIdentificationCommandService,
-        anomaly_command_service: AnomalyCommandService,
         energy_reading_analytics_command_service: EnergyReadingAnalyticsCommandService,
     ):
         # The command services this handler is allowed to invoke are injected.
-        self._device_identification_command_service = device_identification_command_service
-        self._anomaly_command_service = anomaly_command_service
         self._energy_reading_analytics_command_service = energy_reading_analytics_command_service
 
     async def handle(self, topic: str, payload: dict[str, Any]) -> None:
-        """Dispatch the event to the right internal handler based on its topic."""
-        # Device-related events -> device identification.
-        if topic in {events.DEVICE_REGISTERED, events.DEVICE_STATUS_UPDATED}:
-            await self._handle_device_event(payload)
-        # Energy-consumption events -> downstream analytics.
-        if topic in {events.ENERGY_CONSUMPTION_RECORDED, events.ENERGY_READING_CREATED}:
-            await self._handle_energy_reading_created(payload)
-
-    async def _handle_device_event(self, payload: dict[str, Any]) -> None:
-        """Process device registered/updated events."""
-        user_id = _coalesce(payload, "user_id", "userId")
-        device_id = _coalesce(payload, "device_id", "deviceId")
-        if not user_id or not device_id:
+        """Dispatch the event to the right internal handler based on eventType."""
+        if topic not in events.CONSUMED_TOPICS:
             return
-        # Translate the external payload into an internal command and run it.
-        await self._device_identification_command_service.create(
-            CreateDeviceIdentificationCommand(
-                user_id=str(user_id),
-                device_id=str(device_id),
-                average_daily_kwh=_to_optional_float(
-                    _coalesce(payload, "average_daily_kwh", "averageDailyKwh")
-                ),
-            )
-        )
+        event_type = _coalesce(payload, "eventType", "event_type")
+        if event_type not in events.CONSUMED_EVENT_TYPES:
+            return
+        event_payload = _extract_event_payload(payload)
+        if event_type == events.ENERGY_READING_CREATED:
+            await self._handle_energy_reading_created(event_payload)
 
     async def _handle_energy_reading_created(self, payload: dict[str, Any]) -> None:
         """Process energy-reading-created events."""
@@ -102,6 +80,16 @@ def _coalesce(payload: dict[str, Any], *keys: str) -> Any:
         if value is not None:
             return value
     return None
+
+
+def _extract_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    nested = payload.get("data")
+    if not isinstance(nested, dict):
+        return payload
+    flattened = dict(payload)
+    flattened.pop("data", None)
+    flattened.update(nested)
+    return flattened
 
 
 def _parse_datetime(value: str) -> datetime:
