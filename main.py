@@ -42,6 +42,7 @@ from analytics.infrastructure.persistence.mongodb.repositories.recommendation_mo
     RecommendationMongoDBRepository,
 )
 from analytics.interfaces.rest.controllers import (
+    analytics_test_controller,
     anomaly_controller,
     bill_prediction_controller,
     consumption_ranking_controller,
@@ -174,6 +175,9 @@ app = FastAPI(
     version="1.0.0",
     description="Analytics Service for Smart Energy Management System",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 app.add_middleware(
@@ -187,6 +191,7 @@ app.add_middleware(
 API_PREFIX = settings.api_prefix
 app.include_router(health_controller.router, prefix=API_PREFIX)
 app.include_router(health_controller.router, prefix="/api/v1")
+app.include_router(analytics_test_controller.router, prefix=API_PREFIX)
 app.include_router(device_identification_controller.router, prefix=API_PREFIX)
 app.include_router(bill_prediction_controller.router, prefix=API_PREFIX)
 app.include_router(recommendation_controller.router, prefix=API_PREFIX)

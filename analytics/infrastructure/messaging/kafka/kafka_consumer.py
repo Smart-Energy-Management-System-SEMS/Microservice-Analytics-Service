@@ -1,10 +1,12 @@
 import asyncio
 import json
 import logging
+import ssl
 from json import JSONDecodeError
 from typing import Any, Awaitable, Callable
 
 from aiokafka import AIOKafkaConsumer
+import certifi
 
 from analytics.infrastructure.messaging.kafka.events import CONSUMED_TOPICS
 
@@ -40,6 +42,8 @@ class KafkaConsumerAdapter:
         }
         if security_protocol:
             kafka_params["security_protocol"] = security_protocol
+            if security_protocol.upper() in {"SSL", "SASL_SSL"}:
+                kafka_params["ssl_context"] = ssl.create_default_context(cafile=certifi.where())
         if sasl_mechanism:
             kafka_params["sasl_mechanism"] = sasl_mechanism
         if sasl_username:

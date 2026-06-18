@@ -15,9 +15,9 @@ services:
       KAFKA_CONSUMED_TOPICS: '["energy.events"]'
       KAFKA_CONSUMED_EVENT_TYPES: '["energy.consumption.recorded"]'
       KAFKA_ENABLED: "true"
-      PORT: "8080"
+      PORT: "8004"
     ports:
-      - "8080:8080"
+      - "8004:8004"
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -27,7 +27,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/health', timeout=5)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/api/v1/health', timeout=5)",
         ]
       interval: 30s
       timeout: 10s

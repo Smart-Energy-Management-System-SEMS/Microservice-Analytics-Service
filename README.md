@@ -7,26 +7,24 @@ Analytics microservice for SEMS (FastAPI + MongoDB + Kafka) with DDD architectur
 Base template in `.env.example`:
 
 ```env
-PORT=8080
-CONFIG_SERVICE_URL=http://config-service:8090
-KAFKA_BROKERS=kafka:9092
-KAFKA_SECURITY_PROTOCOL=
-KAFKA_SASL_MECHANISM=
-KAFKA_USERNAME=
-KAFKA_PASSWORD=
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority&appName=<app-name>
+MONGODB_DATABASE=sems_analytics_db
+PORT=8004
+CONFIG_SERVICE_URL=http://localhost:8090
+KAFKA_ENABLED=false
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_TOPIC_ENERGY_EVENTS=energy.events
 KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events
 KAFKA_CONSUMED_TOPICS=["energy.events"]
 KAFKA_CONSUMED_EVENT_TYPES=["energy.consumption.recorded"]
-DATABASE_URL=
-MONGODB_URI=
-ENVIRONMENT=production
 ```
 
 Notes:
-- Default container setup: if this API and Kafka run in Docker on the same network, use `KAFKA_BROKERS=kafka:9092`.
-- If you run this API outside Docker, point `KAFKA_BROKERS` to a reachable broker hostname, not `localhost`.
-- For Azure Event Hubs over Kafka, use your external namespace host and `SASL_SSL`.
+- `.\.env.local-kafka`: pruebas locales con Kafka en `localhost:9092`.
+- `.\.env.azure-eventhubs`: configuración Azure/Event Hubs lista para copiar/pegar.
+- `.\.env`: archivo activo que puedes reemplazar con cualquiera de las variantes.
+- Si ejecutas fuera de Docker, usa un broker alcanzable en `KAFKA_BOOTSTRAP_SERVERS`.
+- Para Azure Event Hubs sobre Kafka, usa el namespace externo y `SASL_SSL`.
 
 ## Kafka/Event Hubs contract
 
@@ -66,6 +64,7 @@ Public and no-auth:
 
 ## Main endpoints
 
+- `POST /api/v1/analytics/test/energy-consumption-recorded`
 - `GET /api/v1/analytics/device-identifications/user/{user_id}`
 - `POST /api/v1/analytics/device-identifications`
 - `GET /api/v1/analytics/bill-predictions/user/{user_id}`
@@ -85,12 +84,24 @@ Public and no-auth:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env
-# Adjust .env for local dependencies (Config Service, MongoDB, Kafka).
-# Important: this template defaults to container mode with kafka:9092.
-# For Event Hubs/Kafka, replace it with your namespace hostname and SASL settings.
+# Usa la variante que quieras probar y copia su contenido dentro de .env:
+# - .env.local-kafka
+# - .env.azure-eventhubs
+# - .env.example
 uvicorn main:app --host 0.0.0.0 --port $env:PORT --reload
 ```
+
+## Swagger test
+
+- Swagger UI: `GET /docs`
+- OpenAPI JSON: `GET /openapi.json`
+- Smoke test principal:
+  - `POST /api/v1/analytics/test/energy-consumption-recorded`
+- Luego valida resultados con:
+  - `GET /api/v1/analytics/bill-predictions/user/{user_id}`
+  - `GET /api/v1/analytics/recommendations/user/{user_id}`
+  - `GET /api/v1/analytics/anomalies/user/{user_id}`
+  - `GET /api/v1/analytics/consumption-rankings/user/{user_id}`
 
 ## Build Docker image
 
@@ -101,9 +112,9 @@ docker build -t sems-analytics-service:latest .
 ## Run Docker container
 
 ```powershell
-docker run --rm -p 8080:8080 `
+docker run --rm -p 8004:8004 `
   --env-file .env `
-  -e PORT=8080 `
+  -e PORT=8004 `
   sems-analytics-service:latest
 ```
 
@@ -132,12 +143,12 @@ az containerapp create `
   --resource-group $RG `
   --environment $ENV `
   --image $IMAGE `
-  --target-port 8080 `
+  --target-port 8004 `
   --ingress external `
   --env-vars `
-    PORT=8080 `
+    PORT=8004 `
     CONFIG_SERVICE_URL=<https://config-service-url> `
-    KAFKA_BROKERS=<namespace>.servicebus.windows.net:9093 `
+    KAFKA_BOOTSTRAP_SERVERS=<namespace>.servicebus.windows.net:9093 `
     KAFKA_SECURITY_PROTOCOL=SASL_SSL `
     KAFKA_SASL_MECHANISM=PLAIN `
     KAFKA_USERNAME=\$ConnectionString `
