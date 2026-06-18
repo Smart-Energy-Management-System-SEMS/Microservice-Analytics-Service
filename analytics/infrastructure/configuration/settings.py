@@ -14,12 +14,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     port: int = Field(default=8004, validation_alias=AliasChoices("PORT"))
     api_prefix: str = "/api/v1/analytics"
-    allowed_origins: Annotated[List[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"],
-        validation_alias=AliasChoices("ALLOWED_ORIGINS"),
-    )
+    allowed_origins: Annotated[List[str], NoDecode] = Field(default_factory=list, validation_alias=AliasChoices("ALLOWED_ORIGINS"))
     config_service_url: str = Field(
-        default="http://config-service:8090",
+        default="",
         validation_alias=AliasChoices("CONFIG_SERVICE_URL"),
     )
     config_service_timeout_seconds: float = 3.0
@@ -31,7 +28,7 @@ class Settings(BaseSettings):
     mongodb_database: str = "sems_analytics_db"
 
     kafka_bootstrap_servers: str = Field(
-        default="kafka:9092",
+        default="",
         validation_alias=AliasChoices("KAFKA_BROKERS", "KAFKA_BOOTSTRAP_SERVERS"),
     )
     kafka_consumer_group: str = "analytics-service-group"
@@ -53,11 +50,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("KAFKA_PASSWORD", "KAFKA_SASL_PASSWORD"),
     )
     kafka_topic_energy_events: str = Field(
-        default="energy.events",
+        default="",
         validation_alias=AliasChoices("KAFKA_TOPIC_ENERGY_EVENTS"),
     )
     kafka_topic_analytics_events: str = Field(
-        default="analytics.events",
+        default="",
         validation_alias=AliasChoices("KAFKA_TOPIC_ANALYTICS_EVENTS"),
     )
     kafka_consumed_topics: List[str] = Field(
@@ -121,12 +118,12 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             stripped = value.strip()
             if not stripped:
-                return ["http://localhost:3000", "http://localhost:5173"]
+                return []
             if stripped.startswith("["):
                 parsed = json.loads(stripped)
                 if isinstance(parsed, list):
                     return [str(origin).strip() for origin in parsed if str(origin).strip()]
-                return ["http://localhost:3000", "http://localhost:5173"]
+                return []
             return [origin.strip() for origin in stripped.split(",") if origin.strip()]
         return value
 
@@ -147,7 +144,7 @@ class Settings(BaseSettings):
 
     def model_post_init(self, __context: Any) -> None:
         if self.azure_event_hubs_fqdn:
-            if not self.kafka_bootstrap_servers or self.kafka_bootstrap_servers == "kafka:9092":
+            if not self.kafka_bootstrap_servers:
                 self.kafka_bootstrap_servers = f"{self.azure_event_hubs_fqdn}:9093"
             if not self.kafka_security_protocol or self.kafka_security_protocol == "PLAINTEXT":
                 self.kafka_security_protocol = "SASL_SSL"
