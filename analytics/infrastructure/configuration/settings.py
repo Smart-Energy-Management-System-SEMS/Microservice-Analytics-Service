@@ -72,10 +72,6 @@ class Settings(BaseSettings):
         default="energy.consumption.recorded",
         validation_alias=AliasChoices("KAFKA_EVENT_TYPE_ENERGY_CONSUMPTION_RECORDED"),
     )
-    kafka_event_type_energy_reading_created: str = Field(
-        default="energy.reading.created",
-        validation_alias=AliasChoices("KAFKA_EVENT_TYPE_ENERGY_READING_CREATED"),
-    )
     kafka_event_type_analytics_bill_prediction_generated: str = Field(
         default="analytics.bill_prediction.generated",
         validation_alias=AliasChoices("KAFKA_EVENT_TYPE_ANALYTICS_BILL_PREDICTION_GENERATED"),
@@ -220,12 +216,6 @@ def _map_remote_to_settings(remote: dict[str, Any]) -> dict[str, Any]:
             kafka,
             ["energyConsumptionRecorded", "energy.consumption.recorded"],
         )
-        _set_if_present(
-            updates,
-            "kafka_event_type_energy_reading_created",
-            kafka,
-            ["energyReadingCreated", "energy.reading.created"],
-        )
         _set_if_present(updates, "azure_event_hubs_fqdn", kafka, ["azureEventHubsFqdn", "eventHubsFqdn"])
         _set_if_present(
             updates,
@@ -304,7 +294,7 @@ def _default_consumed_topics(settings: Settings) -> list[str]:
 
 def _default_consumed_event_types(settings: Settings) -> list[str]:
     return [
-        settings.kafka_event_type_energy_reading_created,
+        settings.kafka_event_type_energy_consumption_recorded,
     ]
 
 

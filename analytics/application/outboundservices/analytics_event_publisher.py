@@ -9,7 +9,9 @@ domain does not depend on the concrete transport technology.
 """
 
 from dataclasses import asdict, is_dataclass
+from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from analytics.domain.model.entities.anomaly import Anomaly
 from analytics.domain.model.entities.bill_prediction import BillPrediction
@@ -56,10 +58,16 @@ class AnalyticsEventPublisher:
         # Convert the entity to a dict: use asdict for dataclasses, else dict().
         data = asdict(entity) if is_dataclass(entity) else dict(entity)
         payload = {
+            "eventId": str(uuid4()),
             "eventType": event_type,
-            "occurredAt": data.get("created_at") or data.get("generated_at"),
+            "occurredAt": _resolve_occurred_at(data),
             "data": data,
         }
-        if isinstance(data.get("user_id"), str):
-            payload["userId"] = data["user_id"]
         await self._producer.publish(events.ANALYTICS_EVENTS_TOPIC, payload)
+
+
+def _resolve_occurred_at(data: dict[str, Any]) -> str:
+    value = data.get("created_at") or data.get("generated_at") or datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)

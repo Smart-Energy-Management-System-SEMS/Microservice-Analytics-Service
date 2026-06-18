@@ -13,7 +13,7 @@ services:
       KAFKA_TOPIC_ENERGY_EVENTS: energy.events
       KAFKA_TOPIC_ANALYTICS_EVENTS: analytics.events
       KAFKA_CONSUMED_TOPICS: '["energy.events"]'
-      KAFKA_CONSUMED_EVENT_TYPES: '["energy.reading.created"]'
+      KAFKA_CONSUMED_EVENT_TYPES: '["energy.consumption.recorded"]'
       KAFKA_ENABLED: "true"
       PORT: "8080"
     ports:

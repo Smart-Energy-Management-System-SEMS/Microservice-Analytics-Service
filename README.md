@@ -17,7 +17,7 @@ KAFKA_PASSWORD=
 KAFKA_TOPIC_ENERGY_EVENTS=energy.events
 KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events
 KAFKA_CONSUMED_TOPICS=["energy.events"]
-KAFKA_CONSUMED_EVENT_TYPES=["energy.reading.created"]
+KAFKA_CONSUMED_EVENT_TYPES=["energy.consumption.recorded"]
 DATABASE_URL=
 MONGODB_URI=
 ENVIRONMENT=production
@@ -32,15 +32,17 @@ Notes:
 
 - Analytics consumes only from `energy.events`.
 - Analytics filters by `eventType` and processes only:
-  - `energy.reading.created`
-- Analytics publishes all derived results to `analytics.events`.
-- Published messages keep the real event name inside the envelope:
+  - `energy.consumption.recorded`
+- Analytics routes by `eventType`; the physical topic is only the grouped transport channel.
+- Analytics publishes only `analytics.*` events to `analytics.events`.
+- `billing.events` remains the only valid physical topic for future `billing.*` events, but this service does not emit any `billing.*` event today.
+- Published messages use the standard envelope:
 
 ```json
 {
+  "eventId": "7df2fb42-b7bc-4f55-8fc0-5f75539c8948",
   "eventType": "analytics.anomaly.detected",
-  "occurredAt": "2026-06-12T22:30:00Z",
-  "userId": "123",
+  "occurredAt": "2026-06-12T22:30:00+00:00",
   "data": {}
 }
 ```
@@ -143,7 +145,7 @@ az containerapp create `
     KAFKA_TOPIC_ENERGY_EVENTS=energy.events `
     KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events `
     KAFKA_CONSUMED_TOPICS='["energy.events"]' `
-    KAFKA_CONSUMED_EVENT_TYPES='["energy.reading.created"]' `
+    KAFKA_CONSUMED_EVENT_TYPES='["energy.consumption.recorded"]' `
     MONGODB_URI=<mongodb-connection-string> `
     ENVIRONMENT=production
 ```

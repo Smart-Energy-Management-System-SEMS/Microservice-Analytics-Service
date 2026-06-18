@@ -5,7 +5,7 @@ Entry point for the integration events arriving from other microservices
 delegates it to the corresponding Command Service.
 
 It acts as an event "router": it holds no business logic, it only decides
-which use case to trigger based on the received ``topic``.
+which use case to trigger based on the received ``eventType``.
 """
 
 from typing import Any
@@ -36,11 +36,11 @@ class AnalyticsEventHandler:
         if event_type not in events.CONSUMED_EVENT_TYPES:
             return
         event_payload = _extract_event_payload(payload)
-        if event_type == events.ENERGY_READING_CREATED:
-            await self._handle_energy_reading_created(event_payload)
+        if event_type == events.ENERGY_CONSUMPTION_RECORDED:
+            await self._handle_energy_consumption_recorded(event_payload)
 
-    async def _handle_energy_reading_created(self, payload: dict[str, Any]) -> None:
-        """Process energy-reading-created events."""
+    async def _handle_energy_consumption_recorded(self, payload: dict[str, Any]) -> None:
+        """Process energy-consumption-recorded events."""
         user_id = _coalesce(payload, "user_id", "userId")
         device_id = _coalesce(payload, "device_id", "deviceId")
         actual_kwh = _coalesce(
