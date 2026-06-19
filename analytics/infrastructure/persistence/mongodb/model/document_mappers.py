@@ -7,6 +7,7 @@ from bson import ObjectId
 from analytics.domain.model.entities.anomaly import Anomaly
 from analytics.domain.model.entities.bill_prediction import BillPrediction
 from analytics.domain.model.entities.consumption_ranking import ConsumptionRanking
+from analytics.domain.model.entities.device_consumption import DeviceConsumption
 from analytics.domain.model.entities.device_identification_result import DeviceIdentificationResult
 from analytics.domain.model.entities.recommendation import Recommendation
 from analytics.domain.model.valueobjects.ranking_item import RankingItem
@@ -17,6 +18,14 @@ T = TypeVar("T")
 def _id_to_str(document: dict[str, Any]) -> str | None:
     value = document.get("_id")
     return str(value) if value is not None else None
+
+
+def _coalesce(document: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = document.get(key)
+        if value is not None:
+            return value
+    return None
 
 
 def _clean_document(data: dict[str, Any]) -> dict[str, Any]:
@@ -43,6 +52,43 @@ def document_to_device_identification(document: dict[str, Any]) -> DeviceIdentif
         status=document["status"],
         analyzed_at=document["analyzed_at"],
         created_at=document["created_at"],
+    )
+
+
+def document_to_device_consumption(document: dict[str, Any]) -> DeviceConsumption:
+    energy_value = _coalesce(
+        document,
+        "energy_kwh",
+        "consumption_kwh",
+        "consumptionKwh",
+        "actual_kwh",
+    )
+    measured_at = _coalesce(
+        document,
+        "measured_at",
+        "measuredAt",
+        "timestamp",
+        "occurred_at",
+        "occurredAt",
+    )
+    created_at = _coalesce(document, "created_at", "createdAt", "timestamp", "occurred_at", "occurredAt")
+
+    return DeviceConsumption(
+        id=_id_to_str(document),
+        user_id=_coalesce(document, "user_id", "owner_id", "userId", "ownerId"),
+        device_id=document["device_id"],
+        energy_kwh=float(energy_value),
+        measured_at=measured_at,
+        created_at=created_at,
+        meter_id=_coalesce(document, "meter_id", "meterId"),
+        power_watts=float(_coalesce(document, "power_watts", "powerWatts"))
+        if _coalesce(document, "power_watts", "powerWatts") is not None
+        else None,
+        estimated_cost=float(_coalesce(document, "estimated_cost", "estimatedCost"))
+        if _coalesce(document, "estimated_cost", "estimatedCost") is not None
+        else None,
+        currency=_coalesce(document, "currency"),
+        reading_type=_coalesce(document, "reading_type", "readingType"),
     )
 
 

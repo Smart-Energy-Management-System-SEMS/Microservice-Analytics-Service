@@ -1,4 +1,5 @@
 from analytics.interfaces.rest.controllers import (
+    analytics_test_controller,
     anomaly_controller,
     bill_prediction_controller,
     consumption_ranking_controller,
@@ -8,6 +9,7 @@ from analytics.interfaces.rest.controllers import (
 )
 
 __all__ = [
+    "analytics_test_controller",
     "anomaly_controller",
     "bill_prediction_controller",
     "consumption_ranking_controller",

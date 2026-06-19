@@ -9,6 +9,9 @@ from analytics.application.commandservices.anomaly_command_service import Anomal
 from analytics.application.commandservices.bill_prediction_command_service import BillPredictionCommandService
 from analytics.application.commandservices.consumption_ranking_command_service import ConsumptionRankingCommandService
 from analytics.application.commandservices.device_identification_command_service import DeviceIdentificationCommandService
+from analytics.application.commandservices.energy_reading_analytics_command_service import (
+    EnergyReadingAnalyticsCommandService,
+)
 from analytics.application.commandservices.recommendation_command_service import RecommendationCommandService
 from analytics.application.eventhandlers.analytics_event_handler import AnalyticsEventHandler
 from analytics.application.outboundservices.analytics_event_publisher import AnalyticsEventPublisher
@@ -32,10 +35,14 @@ from analytics.infrastructure.persistence.mongodb.repositories.consumption_ranki
 from analytics.infrastructure.persistence.mongodb.repositories.device_identification_result_mongodb_repository import (
     DeviceIdentificationResultMongoDBRepository,
 )
+from analytics.infrastructure.persistence.mongodb.repositories.device_consumption_mongodb_repository import (
+    DeviceConsumptionMongoDBRepository,
+)
 from analytics.infrastructure.persistence.mongodb.repositories.recommendation_mongodb_repository import (
     RecommendationMongoDBRepository,
 )
 from analytics.interfaces.rest.controllers import (
+    analytics_test_controller,
     anomaly_controller,
     bill_prediction_controller,
     consumption_ranking_controller,
@@ -60,6 +67,7 @@ async def lifespan(fastapi_app: FastAPI):
     consumer: KafkaConsumerAdapter | None = None
 
     if settings.kafka_enabled:
+        logger.info("Attempting Kafka connection using bootstrap servers: %s", settings.kafka_bootstrap_servers)
         producer_candidate = KafkaProducerAdapter(
             settings.kafka_bootstrap_servers,
             security_protocol=settings.kafka_security_protocol,
@@ -71,12 +79,18 @@ async def lifespan(fastapi_app: FastAPI):
             await producer_candidate.start()
             producer = producer_candidate
         except KafkaError:
-            logger.exception("Kafka producer could not start; publishing will be disabled")
+            logger.exception(
+                "Kafka producer could not start for bootstrap servers %s; publishing will be disabled",
+                settings.kafka_bootstrap_servers,
+            )
             producer = None
+    else:
+        logger.info("Kafka integration is disabled by configuration")
 
     event_publisher = AnalyticsEventPublisher(producer)
 
     device_repository = DeviceIdentificationResultMongoDBRepository(database)
+    device_consumption_repository = DeviceConsumptionMongoDBRepository(database)
     bill_repository = BillPredictionMongoDBRepository(database)
     recommendation_repository = RecommendationMongoDBRepository(database)
     anomaly_repository = AnomalyMongoDBRepository(database)
@@ -112,11 +126,20 @@ async def lifespan(fastapi_app: FastAPI):
         event_publisher,
     )
     fastapi_app.state.consumption_ranking_query_service = ConsumptionRankingQueryService(ranking_repository)
+    fastapi_app.state.energy_reading_analytics_command_service = EnergyReadingAnalyticsCommandService(
+        device_consumption_repository,
+        fastapi_app.state.anomaly_command_service,
+        fastapi_app.state.bill_prediction_command_service,
+        fastapi_app.state.recommendation_command_service,
+        fastapi_app.state.consumption_ranking_command_service,
+        rule_service,
+        settings.default_tariff_per_kwh,
+        settings.default_currency,
+    )
 
     if settings.kafka_enabled:
         event_handler = AnalyticsEventHandler(
-            fastapi_app.state.device_identification_command_service,
-            fastapi_app.state.anomaly_command_service,
+            fastapi_app.state.energy_reading_analytics_command_service,
         )
         consumer_candidate = KafkaConsumerAdapter(
             settings.kafka_bootstrap_servers,
@@ -131,7 +154,10 @@ async def lifespan(fastapi_app: FastAPI):
             await consumer_candidate.start()
             consumer = consumer_candidate
         except KafkaError:
-            logger.exception("Kafka consumer could not start; consuming will be disabled")
+            logger.exception(
+                "Kafka consumer could not start for bootstrap servers %s; consuming will be disabled",
+                settings.kafka_bootstrap_servers,
+            )
             consumer = None
 
     try:
@@ -149,6 +175,9 @@ app = FastAPI(
     version="1.0.0",
     description="Analytics Service for Smart Energy Management System",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 app.add_middleware(
@@ -161,6 +190,8 @@ app.add_middleware(
 
 API_PREFIX = settings.api_prefix
 app.include_router(health_controller.router, prefix=API_PREFIX)
+app.include_router(health_controller.router, prefix="/api/v1")
+app.include_router(analytics_test_controller.router, prefix=API_PREFIX)
 app.include_router(device_identification_controller.router, prefix=API_PREFIX)
 app.include_router(bill_prediction_controller.router, prefix=API_PREFIX)
 app.include_router(recommendation_controller.router, prefix=API_PREFIX)

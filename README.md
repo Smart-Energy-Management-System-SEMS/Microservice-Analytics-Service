@@ -2,30 +2,47 @@
 
 Analytics microservice for SEMS (FastAPI + MongoDB + Kafka) with DDD architecture.
 
-## Local integration targets
+## Required environment variables
 
-- Config Service: `http://localhost:8090`
-- API Gateway: `http://localhost:8081`
-- This service base URL: `http://localhost:8004`
-- Route prefix: `/api/v1/analytics`
-
-## Minimal local env
-
-Use `.env.example` as base:
+Base template in `.env.example`:
 
 ```env
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority&appName=<app-name>
+MONGODB_DATABASE=sems_analytics_db
 PORT=8004
 CONFIG_SERVICE_URL=http://localhost:8090
-CONFIG_SERVICE_TIMEOUT_SECONDS=3.0
-SERVICE_NAME=analytics-service
-ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+KAFKA_ENABLED=false
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+KAFKA_TOPIC_ENERGY_EVENTS=energy.events
+KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events
+KAFKA_CONSUMED_TOPICS=["energy.events"]
+KAFKA_CONSUMED_EVENT_TYPES=["energy.consumption.recorded"]
+```
 
-MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority
-MONGODB_DATABASE=sems_analytics_db
+Notes:
+- `.\.env.local-kafka`: pruebas locales con Kafka en `localhost:9092`.
+- `.\.env.azure-eventhubs`: configuración Azure/Event Hubs lista para copiar/pegar.
+- `.\.env`: archivo activo que puedes reemplazar con cualquiera de las variantes.
+- Si ejecutas fuera de Docker, usa un broker alcanzable en `KAFKA_BOOTSTRAP_SERVERS`.
+- Para Azure Event Hubs sobre Kafka, usa el namespace externo y `SASL_SSL`.
 
-# Optional only if Kafka auth is required
-KAFKA_SASL_USERNAME=<kafka-username>
-KAFKA_SASL_PASSWORD=<kafka-password>
+## Kafka/Event Hubs contract
+
+- Analytics consumes only from `energy.events`.
+- Analytics filters by `eventType` and processes only:
+  - `energy.consumption.recorded`
+- Analytics routes by `eventType`; the physical topic is only the grouped transport channel.
+- Analytics publishes only `analytics.*` events to `analytics.events`.
+- `billing.events` remains the only valid physical topic for future `billing.*` events, but this service does not emit any `billing.*` event today.
+- Published messages use the standard envelope:
+
+```json
+{
+  "eventId": "7df2fb42-b7bc-4f55-8fc0-5f75539c8948",
+  "eventType": "analytics.anomaly.detected",
+  "occurredAt": "2026-06-12T22:30:00+00:00",
+  "data": {}
+}
 ```
 
 ## Config resolved from Config Service
@@ -43,9 +60,11 @@ If Config Service is unavailable, local defaults are used as fallback.
 Public and no-auth:
 
 - `GET /api/v1/analytics/health`
+- `GET /api/v1/health`
 
 ## Main endpoints
 
+- `POST /api/v1/analytics/test/energy-consumption-recorded`
 - `GET /api/v1/analytics/device-identifications/user/{user_id}`
 - `POST /api/v1/analytics/device-identifications`
 - `GET /api/v1/analytics/bill-predictions/user/{user_id}`
@@ -65,15 +84,87 @@ Public and no-auth:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8004 --reload
+# Usa la variante que quieras probar y copia su contenido dentro de .env:
+# - .env.local-kafka
+# - .env.azure-eventhubs
+# - .env.example
+uvicorn main:app --host 0.0.0.0 --port $env:PORT --reload
 ```
 
-## Local dependencies
+## Swagger test
 
-- MongoDB Atlas or local MongoDB reachable from `MONGODB_URI`
-- Kafka broker on `localhost:9092` if Kafka is enabled
+- Swagger UI: `GET /docs`
+- OpenAPI JSON: `GET /openapi.json`
+- Smoke test principal:
+  - `POST /api/v1/analytics/test/energy-consumption-recorded`
+- Luego valida resultados con:
+  - `GET /api/v1/analytics/bill-predictions/user/{user_id}`
+  - `GET /api/v1/analytics/recommendations/user/{user_id}`
+  - `GET /api/v1/analytics/anomalies/user/{user_id}`
+  - `GET /api/v1/analytics/consumption-rankings/user/{user_id}`
+
+## Build Docker image
+
+```powershell
+docker build -t sems-analytics-service:latest .
+```
+
+## Run Docker container
+
+```powershell
+docker run --rm -p 8004:8004 `
+  --env-file .env `
+  -e PORT=8004 `
+  sems-analytics-service:latest
+```
+
+## Azure Container Apps deployment guide
+
+```powershell
+# 1) Variables base
+$RG="sems-rg"
+$LOC="eastus"
+$ENV="sems-aca-env"
+$ACR="semsacr"
+$APP="analytics-service"
+$IMAGE="$ACR.azurecr.io/analytics-service:latest"
+
+# 2) Resource group + ACR + ACA environment
+az group create --name $RG --location $LOC
+az acr create --name $ACR --resource-group $RG --sku Basic
+az containerapp env create --name $ENV --resource-group $RG --location $LOC
+
+# 3) Build and push image
+az acr build --registry $ACR --image analytics-service:latest .
+
+# 4) Deploy Container App
+az containerapp create `
+  --name $APP `
+  --resource-group $RG `
+  --environment $ENV `
+  --image $IMAGE `
+  --target-port 8004 `
+  --ingress external `
+  --env-vars `
+    PORT=8004 `
+    CONFIG_SERVICE_URL=<https://config-service-url> `
+    KAFKA_BOOTSTRAP_SERVERS=<namespace>.servicebus.windows.net:9093 `
+    KAFKA_SECURITY_PROTOCOL=SASL_SSL `
+    KAFKA_SASL_MECHANISM=PLAIN `
+    KAFKA_USERNAME=\$ConnectionString `
+    KAFKA_PASSWORD=<event-hubs-connection-string> `
+    KAFKA_TOPIC_ENERGY_EVENTS=energy.events `
+    KAFKA_TOPIC_ANALYTICS_EVENTS=analytics.events `
+    KAFKA_CONSUMED_TOPICS='["energy.events"]' `
+    KAFKA_CONSUMED_EVENT_TYPES='["energy.consumption.recorded"]' `
+    MONGODB_URI=<mongodb-connection-string> `
+    ENVIRONMENT=production
+```
+
+Validation:
+- `GET /api/v1/health`
+- Existing APIs under `/api/v1/analytics/*`
 
 ## Notes about auth
 
 This microservice does not enforce JWT by itself. Auth is expected to be handled by API Gateway.
-

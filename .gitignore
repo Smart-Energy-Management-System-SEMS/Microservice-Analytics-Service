@@ -1,6 +1,8 @@
-﻿.venv/
+.venv/
 __pycache__/
 .env
+.env.azure-eventhubs
+.env.local-kafka
 .idea/
 *.iml
 *.pyc

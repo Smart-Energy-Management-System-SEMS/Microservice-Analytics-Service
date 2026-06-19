@@ -1,46 +1,103 @@
-from typing import Any
+"""Event Handler in the Application layer.
 
-from analytics.application.commandservices.anomaly_command_service import AnomalyCommandService
-from analytics.application.commandservices.device_identification_command_service import DeviceIdentificationCommandService
-from analytics.domain.model.commands.create_anomaly_command import CreateAnomalyCommand
-from analytics.domain.model.commands.create_device_identification_command import CreateDeviceIdentificationCommand
+Entry point for the integration events arriving from other microservices
+(via Kafka). It translates an external event into an internal command and
+delegates it to the corresponding Command Service.
+
+It acts as an event "router": it holds no business logic, it only decides
+which use case to trigger based on the received ``eventType``.
+"""
+
+from typing import Any
+from datetime import datetime
+
+from analytics.application.commandservices.energy_reading_analytics_command_service import (
+    EnergyReadingAnalyticsCommandService,
+)
+from analytics.domain.model.entities.device_consumption import DeviceConsumption
+from analytics.infrastructure.messaging.kafka import events
 
 
 class AnalyticsEventHandler:
+    """Reacts to external events by triggering the proper use cases."""
+
     def __init__(
         self,
-        device_identification_command_service: DeviceIdentificationCommandService,
-        anomaly_command_service: AnomalyCommandService,
+        energy_reading_analytics_command_service: EnergyReadingAnalyticsCommandService,
     ):
-        self._device_identification_command_service = device_identification_command_service
-        self._anomaly_command_service = anomaly_command_service
+        # The command services this handler is allowed to invoke are injected.
+        self._energy_reading_analytics_command_service = energy_reading_analytics_command_service
 
     async def handle(self, topic: str, payload: dict[str, Any]) -> None:
-        if topic in {"device.registered", "device.updated"}:
-            await self._handle_device_event(payload)
-        if topic == "energy.consumption.recorded":
-            await self._handle_consumption_recorded(payload)
-
-    async def _handle_device_event(self, payload: dict[str, Any]) -> None:
-        if not payload.get("user_id") or not payload.get("device_id"):
+        """Dispatch the event to the right internal handler based on eventType."""
+        if topic not in events.CONSUMED_TOPICS:
             return
-        await self._device_identification_command_service.create(
-            CreateDeviceIdentificationCommand(
-                user_id=str(payload["user_id"]),
-                device_id=str(payload["device_id"]),
-                average_daily_kwh=payload.get("average_daily_kwh"),
+        event_type = _coalesce(payload, "eventType", "event_type")
+        if event_type not in events.CONSUMED_EVENT_TYPES:
+            return
+        event_payload = _extract_event_payload(payload)
+        if event_type == events.ENERGY_CONSUMPTION_RECORDED:
+            await self._handle_energy_consumption_recorded(event_payload)
+
+    async def _handle_energy_consumption_recorded(self, payload: dict[str, Any]) -> None:
+        """Process energy-consumption-recorded events."""
+        user_id = _coalesce(payload, "user_id", "userId")
+        device_id = _coalesce(payload, "device_id", "deviceId")
+        actual_kwh = _coalesce(
+            payload,
+            "actual_kwh",
+            "consumption_kwh",
+            "consumptionKwh",
+            "energy_kwh",
+            "energyKwh",
+        )
+        measured_at = _coalesce(payload, "timestamp", "occurred_at", "occurredAt", "measured_at", "measuredAt")
+        user_id = user_id or _coalesce(payload, "owner_id", "ownerId")
+
+        # Validation: user_id, device_id, reading timestamp, and measured consumption are required.
+        if not user_id or not device_id or actual_kwh is None or measured_at is None:
+            return
+
+        await self._energy_reading_analytics_command_service.process(
+            DeviceConsumption(
+                user_id=str(user_id),
+                device_id=str(device_id),
+                meter_id=_coalesce(payload, "meter_id", "meterId"),
+                power_watts=_to_optional_float(_coalesce(payload, "power_watts", "powerWatts")),
+                energy_kwh=float(actual_kwh),
+                estimated_cost=_to_optional_float(_coalesce(payload, "estimated_cost", "estimatedCost")),
+                currency=_coalesce(payload, "currency"),
+                measured_at=_parse_datetime(str(measured_at)),
+                reading_type=_coalesce(payload, "reading_type", "readingType"),
+                created_at=datetime.utcnow(),
             )
         )
 
-    async def _handle_consumption_recorded(self, payload: dict[str, Any]) -> None:
-        if not payload.get("user_id") or not payload.get("device_id") or payload.get("actual_kwh") is None:
-            return
-        await self._anomaly_command_service.detect_and_create(
-            CreateAnomalyCommand(
-                user_id=str(payload["user_id"]),
-                device_id=str(payload["device_id"]),
-                actual_kwh=float(payload["actual_kwh"]),
-                expected_kwh=payload.get("expected_kwh"),
-                historical_kwh=payload.get("historical_kwh") or [],
-            )
-        )
+
+def _coalesce(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = payload.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _extract_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    nested = payload.get("data")
+    if not isinstance(nested, dict):
+        return payload
+    flattened = dict(payload)
+    flattened.pop("data", None)
+    flattened.update(nested)
+    return flattened
+
+
+def _parse_datetime(value: str) -> datetime:
+    normalized = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(normalized)
+
+
+def _to_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)

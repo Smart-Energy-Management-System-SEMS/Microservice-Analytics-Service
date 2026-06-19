@@ -4,6 +4,9 @@ from analytics.application.commandservices.anomaly_command_service import Anomal
 from analytics.application.commandservices.bill_prediction_command_service import BillPredictionCommandService
 from analytics.application.commandservices.consumption_ranking_command_service import ConsumptionRankingCommandService
 from analytics.application.commandservices.device_identification_command_service import DeviceIdentificationCommandService
+from analytics.application.commandservices.energy_reading_analytics_command_service import (
+    EnergyReadingAnalyticsCommandService,
+)
 from analytics.application.commandservices.recommendation_command_service import RecommendationCommandService
 from analytics.application.queryservices.anomaly_query_service import AnomalyQueryService
 from analytics.application.queryservices.bill_prediction_query_service import BillPredictionQueryService
@@ -50,3 +53,7 @@ def get_consumption_ranking_command_service(request: Request) -> ConsumptionRank
 
 def get_consumption_ranking_query_service(request: Request) -> ConsumptionRankingQueryService:
     return request.app.state.consumption_ranking_query_service
+
+
+def get_energy_reading_analytics_command_service(request: Request) -> EnergyReadingAnalyticsCommandService:
+    return request.app.state.energy_reading_analytics_command_service

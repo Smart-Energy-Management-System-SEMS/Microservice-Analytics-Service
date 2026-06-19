@@ -1,9 +1,11 @@
 import json
 import logging
+import ssl
 from datetime import date, datetime
 from typing import Any
 
 from aiokafka import AIOKafkaProducer
+import certifi
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,8 @@ class KafkaProducerAdapter:
         }
         if security_protocol:
             kafka_params["security_protocol"] = security_protocol
+            if security_protocol.upper() in {"SSL", "SASL_SSL"}:
+                kafka_params["ssl_context"] = ssl.create_default_context(cafile=certifi.where())
         if sasl_mechanism:
             kafka_params["sasl_mechanism"] = sasl_mechanism
         if sasl_username:
@@ -59,3 +63,4 @@ class KafkaProducerAdapter:
             logger.warning("Kafka producer is not started; event skipped: %s", topic)
             return
         await self._producer.send_and_wait(topic, payload)
+        logger.info("Kafka event published to topic: %s", topic)
